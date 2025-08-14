@@ -853,6 +853,28 @@ def admin_toggle_college_status(college_id):
     finally:
         conn.close()
 
+@app.route('/admin/api/departments/<int:department_id>')
+@login_required
+def admin_department_details(department_id):
+    """Get department details via AJAX"""
+    conn = get_db_connection()
+    department = conn.execute('''
+        SELECT d.*, c.name as college_name
+        FROM departments d
+        JOIN colleges c ON d.college_id = c.id
+        WHERE d.id = ?
+    ''', (department_id,)).fetchone()
+    
+    if not department:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Department not found'})
+    
+    conn.close()
+    return jsonify({
+        'success': True,
+        'department': dict(department)
+    })
+
 @app.route('/admin/api/departments/<int:department_id>/toggle-status', methods=['POST'])
 @login_required
 def admin_toggle_department_status(department_id):
@@ -878,6 +900,61 @@ def admin_toggle_department_status(department_id):
         })
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error updating status: {str(e)}'})
+    finally:
+        conn.close()
+
+@app.route('/admin/api/departments/<int:department_id>', methods=['PUT'])
+@login_required
+def admin_edit_department(department_id):
+    """Edit department information"""
+    data = request.json
+    
+    conn = get_db_connection()
+    try:
+        conn.execute('''
+            UPDATE departments SET
+                name = ?, code = ?, head_name = ?, email = ?, phone = ?
+            WHERE id = ?
+        ''', (
+            data.get('name'), data.get('code'), data.get('head_name', ''),
+            data.get('email', ''), data.get('phone', ''), department_id
+        ))
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'Department updated successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error updating department: {str(e)}'})
+    finally:
+        conn.close()
+
+@app.route('/admin/api/departments/<int:department_id>', methods=['DELETE'])
+@login_required
+def admin_delete_department(department_id):
+    """Delete department (soft delete)"""
+    conn = get_db_connection()
+    try:
+        # Check if department has students
+        student_count = conn.execute(
+            'SELECT COUNT(*) as count FROM students WHERE department_id = ? AND status != "deleted"',
+            (department_id,)
+        ).fetchone()['count']
+        
+        if student_count > 0:
+            return jsonify({
+                'success': False, 
+                'message': f'Cannot delete department. It has {student_count} active students.'
+            })
+        
+        # Soft delete by setting status to 'inactive'
+        conn.execute(
+            'UPDATE departments SET status = ? WHERE id = ?',
+            ('inactive', department_id)
+        )
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'Department deleted successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error deleting department: {str(e)}'})
     finally:
         conn.close()
 
@@ -911,6 +988,83 @@ def admin_activate_exam_session(session_id):
         return jsonify({'success': True, 'message': 'Exam session activated successfully'})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error activating session: {str(e)}'})
+    finally:
+        conn.close()
+
+@app.route('/admin/api/exam-sessions/<int:session_id>')
+@login_required
+def admin_exam_session_details(session_id):
+    """Get exam session details via AJAX"""
+    conn = get_db_connection()
+    session = conn.execute('''
+        SELECT es.*, er.room_number, er.building, c.name as college_name, d.name as department_name
+        FROM exam_sessions es
+        LEFT JOIN exam_rooms er ON es.room_id = er.id
+        LEFT JOIN colleges c ON es.college_id = c.id
+        LEFT JOIN departments d ON es.department_id = d.id
+        WHERE es.id = ?
+    ''', (session_id,)).fetchone()
+    
+    if not session:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Exam session not found'})
+    
+    conn.close()
+    return jsonify({
+        'success': True,
+        'session': dict(session)
+    })
+
+@app.route('/admin/api/exam-sessions/<int:session_id>', methods=['PUT'])
+@login_required
+def admin_edit_exam_session(session_id):
+    """Edit exam session information"""
+    data = request.json
+    
+    conn = get_db_connection()
+    try:
+        conn.execute('''
+            UPDATE exam_sessions SET
+                title = ?, description = ?, exam_date = ?, start_time = ?, end_time = ?, subject = ?
+            WHERE id = ?
+        ''', (
+            data.get('title'), data.get('description', ''), data.get('exam_date'),
+            data.get('start_time'), data.get('end_time'), data.get('subject', ''),
+            session_id
+        ))
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'Exam session updated successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error updating exam session: {str(e)}'})
+    finally:
+        conn.close()
+
+@app.route('/admin/api/exam-sessions/<int:session_id>', methods=['DELETE'])
+@login_required
+def admin_delete_exam_session(session_id):
+    """Delete exam session"""
+    conn = get_db_connection()
+    try:
+        # Check if session has attendance records
+        attendance_count = conn.execute(
+            'SELECT COUNT(*) as count FROM exam_attendance WHERE exam_session_id = ?',
+            (session_id,)
+        ).fetchone()['count']
+        
+        if attendance_count > 0:
+            return jsonify({
+                'success': False, 
+                'message': f'Cannot delete exam session. It has {attendance_count} attendance records.'
+            })
+        
+        # Delete the session
+        conn.execute('DELETE FROM exam_sessions WHERE id = ?', (session_id,))
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'Exam session deleted successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error deleting exam session: {str(e)}'})
     finally:
         conn.close()
 
