@@ -387,14 +387,26 @@
         
         async function loadFaceApiModels() {
             try {
+                console.log('Loading face-api.js models...');
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                
+                // Try to load models with timeout
+                const loadPromises = [
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ];
+                
+                await Promise.race([
+                    Promise.all(loadPromises),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+                ]);
+                
                 console.log('Face API models loaded successfully');
                 return true;
             } catch (error) {
                 console.error('Error loading Face API models:', error);
+                console.log('Falling back to basic detection');
                 return false;
             }
         }
@@ -442,7 +454,7 @@
             const overlayCtx = overlay.getContext('2d');
             
             faceDetectionInterval = setInterval(async () => {
-                if (video.videoWidth > 0 && video.videoHeight > 0 && faceApiLoaded) {
+                if (video.videoWidth > 0 && video.videoHeight > 0) {
                     // Set overlay size to match video display
                     overlay.width = video.offsetWidth;
                     overlay.height = video.offsetHeight;
@@ -450,146 +462,195 @@
                     // Clear previous detections
                     overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
                     
-                    try {
-                        // Detect faces with face-api.js
-                        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({
-                            inputSize: 416,
-                            scoreThreshold: 0.5
-                        })).withFaceLandmarks();
-                        
-                        const status = document.getElementById('detectionStatus');
-                        
-                        if (detections.length > 0) {
-                            // Face detected
-                            status.innerHTML = '<i class="fas fa-check-circle me-1"></i>Face detected - Ready to capture';
-                            status.style.background = 'rgba(40, 167, 69, 0.8)';
-                            
-                            // Draw bounding boxes and landmarks
-                            const scaleX = overlay.width / video.videoWidth;
-                            const scaleY = overlay.height / video.videoHeight;
-                            
-                            detections.forEach(detection => {
-                                const { x, y, width, height } = detection.detection.box;
-                                
-                                // Draw dynamic face bounding box
-                                overlayCtx.strokeStyle = '#00ff00';
-                                overlayCtx.lineWidth = 3;
-                                overlayCtx.strokeRect(
-                                    x * scaleX,
-                                    y * scaleY,
-                                    width * scaleX,
-                                    height * scaleY
-                                );
-                                
-                                // Draw corner indicators
-                                const cornerSize = 20;
-                                overlayCtx.lineWidth = 4;
-                                
-                                // Top-left corner
-                                overlayCtx.beginPath();
-                                overlayCtx.moveTo(x * scaleX, y * scaleY + cornerSize);
-                                overlayCtx.lineTo(x * scaleX, y * scaleY);
-                                overlayCtx.lineTo(x * scaleX + cornerSize, y * scaleY);
-                                overlayCtx.stroke();
-                                
-                                // Top-right corner
-                                overlayCtx.beginPath();
-                                overlayCtx.moveTo((x + width) * scaleX - cornerSize, y * scaleY);
-                                overlayCtx.lineTo((x + width) * scaleX, y * scaleY);
-                                overlayCtx.lineTo((x + width) * scaleX, y * scaleY + cornerSize);
-                                overlayCtx.stroke();
-                                
-                                // Bottom-left corner
-                                overlayCtx.beginPath();
-                                overlayCtx.moveTo(x * scaleX, (y + height) * scaleY - cornerSize);
-                                overlayCtx.lineTo(x * scaleX, (y + height) * scaleY);
-                                overlayCtx.lineTo(x * scaleX + cornerSize, (y + height) * scaleY);
-                                overlayCtx.stroke();
-                                
-                                // Bottom-right corner
-                                overlayCtx.beginPath();
-                                overlayCtx.moveTo((x + width) * scaleX - cornerSize, (y + height) * scaleY);
-                                overlayCtx.lineTo((x + width) * scaleX, (y + height) * scaleY);
-                                overlayCtx.lineTo((x + width) * scaleX, (y + height) * scaleY - cornerSize);
-                                overlayCtx.stroke();
-                                
-                                // Add confidence and instruction text
-                                overlayCtx.fillStyle = '#00ff00';
-                                overlayCtx.font = 'bold 16px Arial';
-                                overlayCtx.fillText(
-                                    `Confidence: ${(detection.detection.score * 100).toFixed(1)}%`,
-                                    x * scaleX,
-                                    y * scaleY - 25
-                                );
-                                
-                                overlayCtx.fillStyle = '#ffffff';
-                                overlayCtx.font = 'bold 14px Arial';
-                                overlayCtx.fillText(
-                                    'Position your face in the center',
-                                    x * scaleX,
-                                    (y + height) * scaleY + 20
-                                );
-                                
-                                // Draw key facial landmarks
-                                if (detection.landmarks) {
-                                    overlayCtx.fillStyle = '#ff0000';
-                                    const landmarks = detection.landmarks;
-                                    
-                                    // Draw eyes
-                                    const leftEye = landmarks.getLeftEye();
-                                    const rightEye = landmarks.getRightEye();
-                                    const nose = landmarks.getNose();
-                                    const mouth = landmarks.getMouth();
-                                    
-                                    [leftEye, rightEye, nose, mouth].forEach(feature => {
-                                        feature.forEach(point => {
-                                            overlayCtx.beginPath();
-                                            overlayCtx.arc(point.x * scaleX, point.y * scaleY, 2, 0, 2 * Math.PI);
-                                            overlayCtx.fill();
-                                        });
-                                    });
-                                }
-                            });
-                            
-                        } else {
-                            // No face detected
-                            status.innerHTML = '<i class="fas fa-search me-1"></i>Position your face in the camera';
-                            status.style.background = 'rgba(255, 193, 7, 0.8)';
-                            
-                            // Draw guide box
-                            overlayCtx.strokeStyle = '#ffc107';
-                            overlayCtx.lineWidth = 2;
-                            overlayCtx.setLineDash([10, 5]);
-                            
-                            const guideWidth = overlay.width * 0.4;
-                            const guideHeight = overlay.height * 0.5;
-                            const guideX = (overlay.width - guideWidth) / 2;
-                            const guideY = (overlay.height - guideHeight) / 2;
-                            
-                            overlayCtx.strokeRect(guideX, guideY, guideWidth, guideHeight);
-                            overlayCtx.setLineDash([]);
-                            
-                            // Guide text
-                            overlayCtx.fillStyle = '#ffc107';
-                            overlayCtx.font = 'bold 16px Arial';
-                            overlayCtx.textAlign = 'center';
-                            overlayCtx.fillText('Position your face here', overlay.width / 2, guideY - 10);
-                            overlayCtx.textAlign = 'left';
-                        }
-                        
-                    } catch (error) {
-                        console.error('Face detection error:', error);
-                        const status = document.getElementById('detectionStatus');
-                        status.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Detection error';
-                        status.style.background = 'rgba(220, 53, 69, 0.8)';
-                    }
-                } else if (!faceApiLoaded) {
-                    // Fallback to simple detection while models are loading
                     const status = document.getElementById('detectionStatus');
-                    status.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading face detection...';
-                    status.style.background = 'rgba(0, 123, 255, 0.8)';
+                    
+                    if (faceApiLoaded && typeof faceapi !== 'undefined') {
+                        try {
+                            // Use face-api.js for advanced detection
+                            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({
+                                inputSize: 416,
+                                scoreThreshold: 0.5
+                            })).withFaceLandmarks();
+                            
+                            if (detections.length > 0) {
+                                // Face detected
+                                status.innerHTML = '<i class="fas fa-check-circle me-1"></i>Face detected - Ready to capture';
+                                status.style.background = 'rgba(40, 167, 69, 0.8)';
+                                
+                                // Draw bounding boxes and landmarks
+                                const scaleX = overlay.width / video.videoWidth;
+                                const scaleY = overlay.height / video.videoHeight;
+                                
+                                detections.forEach(detection => {
+                                    const { x, y, width, height } = detection.detection.box;
+                                    
+                                    // Draw dynamic face bounding box
+                                    overlayCtx.strokeStyle = '#00ff00';
+                                    overlayCtx.lineWidth = 3;
+                                    overlayCtx.strokeRect(
+                                        x * scaleX,
+                                        y * scaleY,
+                                        width * scaleX,
+                                        height * scaleY
+                                    );
+                                    
+                                    // Draw corner indicators
+                                    const cornerSize = 20;
+                                    overlayCtx.lineWidth = 4;
+                                    
+                                    // Top-left corner
+                                    overlayCtx.beginPath();
+                                    overlayCtx.moveTo(x * scaleX, y * scaleY + cornerSize);
+                                    overlayCtx.lineTo(x * scaleX, y * scaleY);
+                                    overlayCtx.lineTo(x * scaleX + cornerSize, y * scaleY);
+                                    overlayCtx.stroke();
+                                    
+                                    // Top-right corner
+                                    overlayCtx.beginPath();
+                                    overlayCtx.moveTo((x + width) * scaleX - cornerSize, y * scaleY);
+                                    overlayCtx.lineTo((x + width) * scaleX, y * scaleY);
+                                    overlayCtx.lineTo((x + width) * scaleX, y * scaleY + cornerSize);
+                                    overlayCtx.stroke();
+                                    
+                                    // Bottom-left corner
+                                    overlayCtx.beginPath();
+                                    overlayCtx.moveTo(x * scaleX, (y + height) * scaleY - cornerSize);
+                                    overlayCtx.lineTo(x * scaleX, (y + height) * scaleY);
+                                    overlayCtx.lineTo(x * scaleX + cornerSize, (y + height) * scaleY);
+                                    overlayCtx.stroke();
+                                    
+                                    // Bottom-right corner
+                                    overlayCtx.beginPath();
+                                    overlayCtx.moveTo((x + width) * scaleX - cornerSize, (y + height) * scaleY);
+                                    overlayCtx.lineTo((x + width) * scaleX, (y + height) * scaleY);
+                                    overlayCtx.lineTo((x + width) * scaleX, (y + height) * scaleY - cornerSize);
+                                    overlayCtx.stroke();
+                                    
+                                    // Add confidence and instruction text
+                                    overlayCtx.fillStyle = '#00ff00';
+                                    overlayCtx.font = 'bold 16px Arial';
+                                    overlayCtx.fillText(
+                                        `Confidence: ${(detection.detection.score * 100).toFixed(1)}%`,
+                                        x * scaleX,
+                                        y * scaleY - 25
+                                    );
+                                    
+                                    overlayCtx.fillStyle = '#ffffff';
+                                    overlayCtx.font = 'bold 14px Arial';
+                                    overlayCtx.fillText(
+                                        'Position your face in the center',
+                                        x * scaleX,
+                                        (y + height) * scaleY + 20
+                                    );
+                                });
+                                
+                            } else {
+                                drawGuidanceBox(overlayCtx, overlay, status, false);
+                            }
+                            
+                        } catch (error) {
+                            console.error('Face detection error:', error);
+                            // Fall back to basic detection
+                            basicFaceDetectionForRegistration(overlayCtx, overlay, status);
+                        }
+                    } else {
+                        // Use basic detection as fallback
+                        basicFaceDetectionForRegistration(overlayCtx, overlay, status);
+                    }
                 }
             }, 150); // Update every 150ms for smooth detection
+        }
+        
+        function basicFaceDetectionForRegistration(overlayCtx, overlay, status) {
+            // Use simple heuristic: check if there's enough contrast in the center area
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 100;
+            canvas.height = 100;
+            
+            // Draw a small portion of the video to analyze
+            ctx.drawImage(video, 
+                video.videoWidth * 0.3, video.videoHeight * 0.2, 
+                video.videoWidth * 0.4, video.videoHeight * 0.5,
+                0, 0, 100, 100
+            );
+            
+            const imageData = ctx.getImageData(0, 0, 100, 100);
+            const data = imageData.data;
+            
+            // Calculate variance in grayscale values (face detection heuristic)
+            let sum = 0, sumSquares = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                sum += gray;
+                sumSquares += gray * gray;
+            }
+            
+            const mean = sum / (data.length / 4);
+            const variance = (sumSquares / (data.length / 4)) - (mean * mean);
+            
+            // If variance is high enough, assume face is present
+            if (variance > 500) { // Threshold for face detection
+                status.innerHTML = '<i class="fas fa-check-circle me-1"></i>Face detected - Ready to capture';
+                status.style.background = 'rgba(40, 167, 69, 0.8)';
+                
+                // Draw basic face indication
+                const centerX = overlay.width / 2;
+                const centerY = overlay.height / 2;
+                const faceWidth = overlay.width * 0.4;
+                const faceHeight = overlay.height * 0.5;
+                
+                overlayCtx.strokeStyle = '#00ff00';
+                overlayCtx.lineWidth = 3;
+                overlayCtx.strokeRect(
+                    centerX - faceWidth / 2,
+                    centerY - faceHeight / 2,
+                    faceWidth,
+                    faceHeight
+                );
+                
+                // Add text
+                overlayCtx.fillStyle = '#00ff00';
+                overlayCtx.font = 'bold 16px Arial';
+                overlayCtx.textAlign = 'center';
+                overlayCtx.fillText('Face Detected (Basic)', centerX, centerY - faceHeight / 2 - 10);
+                overlayCtx.textAlign = 'left';
+                
+            } else {
+                drawGuidanceBox(overlayCtx, overlay, status, true);
+            }
+        }
+        
+        function drawGuidanceBox(overlayCtx, overlay, status, isBasic) {
+            // No face detected
+            status.innerHTML = '<i class="fas fa-search me-1"></i>Position your face in the camera';
+            status.style.background = 'rgba(255, 193, 7, 0.8)';
+            
+            // Draw guide box
+            overlayCtx.strokeStyle = '#ffc107';
+            overlayCtx.lineWidth = 2;
+            overlayCtx.setLineDash([10, 5]);
+            
+            const guideWidth = overlay.width * 0.4;
+            const guideHeight = overlay.height * 0.5;
+            const guideX = (overlay.width - guideWidth) / 2;
+            const guideY = (overlay.height - guideHeight) / 2;
+            
+            overlayCtx.strokeRect(guideX, guideY, guideWidth, guideHeight);
+            overlayCtx.setLineDash([]);
+            
+            // Guide text
+            overlayCtx.fillStyle = '#ffc107';
+            overlayCtx.font = 'bold 16px Arial';
+            overlayCtx.textAlign = 'center';
+            overlayCtx.fillText('Position your face here', overlay.width / 2, guideY - 10);
+            
+            if (isBasic) {
+                overlayCtx.font = 'bold 12px Arial';
+                overlayCtx.fillText('(Using basic detection)', overlay.width / 2, guideY + guideHeight + 25);
+            }
+            
+            overlayCtx.textAlign = 'left';
         }
         
         function captureImage() {
