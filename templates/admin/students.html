@@ -35,9 +35,10 @@
                     <div class="col-lg-3">
                         <select class="form-control" id="collegeFilter">
                             <option value="">All Colleges</option>
+                            {% set shown_colleges = [] %}
                             {% for student in students %}
                                 {% if student.college_name not in shown_colleges %}
-                                    {% set shown_colleges = shown_colleges + [student.college_name] if shown_colleges else [student.college_name] %}
+                                    {% set shown_colleges = shown_colleges + [student.college_name] %}
                                     <option value="{{ student.college_name }}">{{ student.college_name }}</option>
                                 {% endif %}
                             {% endfor %}
