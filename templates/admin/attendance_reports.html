@@ -170,8 +170,18 @@
                                     </td>
                                     <td>{{ record.exam_date }}</td>
                                     <td>
-                                        {{ record.verification_time.strftime('%H:%M:%S') if record.verification_time else 'N/A' }}
-                                        <br><small class="text-muted">{{ record.verification_time.strftime('%Y-%m-%d') if record.verification_time else 'N/A' }}</small>
+                                        {% if record.verification_time %}
+                                            {% if record.verification_time is string %}
+                                                {{ record.verification_time.split(' ')[1].split('.')[0] if ' ' in record.verification_time else record.verification_time }}
+                                                <br><small class="text-muted">{{ record.verification_time.split(' ')[0] if ' ' in record.verification_time else 'N/A' }}</small>
+                                            {% else %}
+                                                {{ record.verification_time.strftime('%H:%M:%S') }}
+                                                <br><small class="text-muted">{{ record.verification_time.strftime('%Y-%m-%d') }}</small>
+                                            {% endif %}
+                                        {% else %}
+                                            N/A
+                                            <br><small class="text-muted">N/A</small>
+                                        {% endif %}
                                     </td>
                                     <td>{{ record.room_assignment or 'Not Assigned' }}</td>
                                     <td>

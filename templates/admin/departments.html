@@ -129,19 +129,141 @@
 
 <script>
 function editDepartment(id) {
-    // TODO: Implement edit functionality
-    alert('Edit functionality will be implemented');
+    // Fetch current department data
+    fetch(`/admin/api/departments/${id}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const dept = data.department;
+                const modalContent = `
+                    <div class="modal fade" id="editDepartmentModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Edit Department</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form id="editDepartmentForm">
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Department Name</label>
+                                            <input type="text" class="form-control" name="name" value="${dept.name}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Department Code</label>
+                                            <input type="text" class="form-control" name="code" value="${dept.code}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Head of Department</label>
+                                            <input type="text" class="form-control" name="head_name" value="${dept.head_name || ''}">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Email</label>
+                                            <input type="email" class="form-control" name="email" value="${dept.email || ''}">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Phone</label>
+                                            <input type="text" class="form-control" name="phone" value="${dept.phone || ''}">
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Remove existing modal if present
+                const existingModal = document.getElementById('editDepartmentModal');
+                if (existingModal) existingModal.remove();
+                
+                // Add modal to body
+                document.body.insertAdjacentHTML('beforeend', modalContent);
+                
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('editDepartmentModal'));
+                modal.show();
+                
+                // Handle form submission
+                document.getElementById('editDepartmentForm').addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const formData = new FormData(this);
+                    const updateData = Object.fromEntries(formData);
+                    
+                    fetch(`/admin/api/departments/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updateData)
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            alert('Department updated successfully!');
+                            modal.hide();
+                            location.reload();
+                        } else {
+                            alert('Error: ' + result.message);
+                        }
+                    });
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading department data');
+        });
 }
 
 function toggleDepartmentStatus(id) {
-    // TODO: Implement status toggle
-    alert('Toggle status functionality will be implemented');
+    if (confirm('Are you sure you want to toggle this department status?')) {
+        // Get current status from the page
+        const row = document.querySelector(`button[onclick="toggleDepartmentStatus(${id})"]`).closest('tr');
+        const currentStatus = row.querySelector('.badge').textContent.toLowerCase();
+        const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+        
+        fetch(`/admin/api/departments/${id}/toggle-status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert(result.message);
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error updating department status');
+        });
+    }
 }
 
 function deleteDepartment(id) {
-    if (confirm('Are you sure you want to delete this department?')) {
-        // TODO: Implement delete functionality
-        alert('Delete functionality will be implemented');
+    if (confirm('Are you sure you want to delete this department? This action cannot be undone.')) {
+        fetch(`/admin/api/departments/${id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert(result.message);
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting department');
+        });
     }
 }
 </script>
