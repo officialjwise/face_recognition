@@ -323,8 +323,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Face API.js for dynamic face detection -->
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <!-- Face API.js for dynamic face detection (using local files) -->
+    <script src="/static/js/face-api/face-api.min.js"></script>
     <script>
         let video, canvas, ctx;
         let capturedImageData = null;
@@ -336,9 +336,17 @@
             canvas = document.getElementById('canvas');
             ctx = canvas.getContext('2d');
             
+            console.log('DOM content loaded, initializing face detection system...');
+            
             // Load face-api.js models first
             loadFaceApiModels().then(() => {
+                console.log('Face API models successfully loaded, initializing camera...');
                 faceApiLoaded = true;
+                initializeCamera();
+            }).catch(err => {
+                console.error('Failed to load Face API models:', err);
+                alert('Face detection could not be initialized. You may still capture your image manually.');
+                // Still initialize camera as fallback
                 initializeCamera();
             });
             
@@ -388,7 +396,7 @@
         async function loadFaceApiModels() {
             try {
                 console.log('Loading face-api.js models...');
-                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+                const MODEL_URL = '/static/js/face-api/weights';
                 
                 // Try to load models with timeout
                 const loadPromises = [
@@ -399,7 +407,7 @@
                 
                 await Promise.race([
                     Promise.all(loadPromises),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20000))  // Increased timeout to 20 seconds
                 ]);
                 
                 console.log('Face API models loaded successfully');
@@ -422,6 +430,7 @@
             .then(stream => {
                 video.srcObject = stream;
                 video.addEventListener('loadedmetadata', () => {
+                    console.log('Camera initialized with dimensions:', video.videoWidth, 'x', video.videoHeight);
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
                     startFaceDetection();
@@ -431,6 +440,8 @@
                 console.error('Error accessing camera:', err);
                 document.getElementById('detectionStatus').innerHTML = 
                     '<i class="fas fa-exclamation-triangle me-1"></i>Camera access denied';
+                // Attempt to recover by using a more basic approach
+                document.getElementById('captureBtn').disabled = false;
             });
         }
         
@@ -654,11 +665,13 @@
         }
         
         function captureImage() {
+            console.log('Capturing face image...');
             // Draw current video frame to canvas
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             // Get image data
             capturedImageData = canvas.toDataURL('image/jpeg', 0.8);
+            console.log('Image captured successfully');
             
             // Hide video and show preview
             video.style.display = 'none';
