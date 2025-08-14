@@ -1,0 +1,36 @@
+# Enhanced Student Face Recognition System - Requirements
+# Install with: pip install -r enhanced_requirements.txt
+
+# Core Flask Framework
+Flask==3.0.3
+Werkzeug==3.0.1
+
+# Configuration Management
+python-dotenv==1.1.1
+
+# Face Recognition and Computer Vision
+face_recognition==1.3.0
+opencv-python-headless==4.12.0.88
+face_recognition_models>=0.3.0
+dlib>=19.7
+numpy>=2.0.0
+Pillow>=10.0.0
+
+# Database and Security
+sqlite3
+hashlib
+secrets
+
+# Utilities
+python-dateutil>=2.8.0
+requests>=2.31.0
+
+# Development and Debugging (optional)
+flask-cors>=4.0.0
+
+# For Email functionality (optional)
+# smtplib (built-in)
+# email (built-in)
+
+# Additional utilities
+click>=8.0.0

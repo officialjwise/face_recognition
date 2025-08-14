@@ -1,0 +1,329 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Attendance Reports{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-chart-bar"></i> Attendance Reports</h2>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-primary" onclick="exportToCSV()">
+                        <i class="fas fa-download"></i> Export CSV
+                    </button>
+                    <button type="button" class="btn btn-outline-success" onclick="exportToPDF()">
+                        <i class="fas fa-file-pdf"></i> Export PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="filterDate" class="form-label">Filter by Date</label>
+                            <input type="date" class="form-control" id="filterDate" onchange="filterAttendance()">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filterCollege" class="form-label">Filter by College</label>
+                            <select class="form-select" id="filterCollege" onchange="filterAttendance()">
+                                <option value="">All Colleges</option>
+                                <!-- Options will be populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filterDepartment" class="form-label">Filter by Department</label>
+                            <select class="form-select" id="filterDepartment" onchange="filterAttendance()">
+                                <option value="">All Departments</option>
+                                <!-- Options will be populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filterStatus" class="form-label">Filter by Status</label>
+                            <select class="form-select" id="filterStatus" onchange="filterAttendance()">
+                                <option value="">All Status</option>
+                                <option value="present">Present</option>
+                                <option value="absent">Absent</option>
+                                <option value="late">Late</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title" id="totalAttendance">{{ attendance|length }}</h4>
+                                    <p class="card-text">Total Attendance</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-users fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title" id="presentCount">
+                                        {% set present_count = attendance|selectattr("status", "equalto", "present")|list|length %}
+                                        {{ present_count }}
+                                    </h4>
+                                    <p class="card-text">Present</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-check-circle fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title" id="lateCount">
+                                        {% set late_count = attendance|selectattr("status", "equalto", "late")|list|length %}
+                                        {{ late_count }}
+                                    </h4>
+                                    <p class="card-text">Late</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-clock fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title" id="attendanceRate">
+                                        {% if attendance|length > 0 %}
+                                            {% set present_count = attendance|selectattr("status", "equalto", "present")|list|length %}
+                                            {{ "%.1f"|format((present_count / attendance|length) * 100) }}%
+                                        {% else %}
+                                            0%
+                                        {% endif %}
+                                    </h4>
+                                    <p class="card-text">Attendance Rate</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-percentage fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Table -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="attendanceTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Student Name</th>
+                                    <th>Index Number</th>
+                                    <th>College</th>
+                                    <th>Department</th>
+                                    <th>Exam Session</th>
+                                    <th>Date</th>
+                                    <th>Verification Time</th>
+                                    <th>Room Assignment</th>
+                                    <th>Method</th>
+                                    <th>Confidence</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in attendance %}
+                                <tr data-college="{{ record.college_name }}" 
+                                    data-department="{{ record.department_name }}" 
+                                    data-date="{{ record.exam_date }}" 
+                                    data-status="{{ record.status }}">
+                                    <td>{{ record.id }}</td>
+                                    <td>{{ record.first_name }} {{ record.last_name }}</td>
+                                    <td><span class="badge bg-secondary">{{ record.index_number }}</span></td>
+                                    <td>{{ record.college_name }}</td>
+                                    <td>{{ record.department_name }}</td>
+                                    <td>
+                                        <strong>{{ record.exam_title }}</strong>
+                                        {% if record.start_time %}
+                                            <br><small class="text-muted">{{ record.start_time }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ record.exam_date }}</td>
+                                    <td>
+                                        {{ record.verification_time.strftime('%H:%M:%S') if record.verification_time else 'N/A' }}
+                                        <br><small class="text-muted">{{ record.verification_time.strftime('%Y-%m-%d') if record.verification_time else 'N/A' }}</small>
+                                    </td>
+                                    <td>{{ record.room_assignment or 'Not Assigned' }}</td>
+                                    <td>
+                                        {% if record.verification_method == 'face_recognition' %}
+                                            <span class="badge bg-info">Face Recognition</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ record.verification_method }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if record.confidence_score %}
+                                            {{ "%.1f"|format(record.confidence_score * 100) }}%
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if record.status == 'present' %}
+                                            <span class="badge bg-success">Present</span>
+                                        {% elif record.status == 'late' %}
+                                            <span class="badge bg-warning">Late</span>
+                                        {% elif record.status == 'absent' %}
+                                            <span class="badge bg-danger">Absent</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ record.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Populate filter dropdowns
+function populateFilters() {
+    const collegeSelect = document.getElementById('filterCollege');
+    const departmentSelect = document.getElementById('filterDepartment');
+    const table = document.getElementById('attendanceTable');
+    
+    const colleges = new Set();
+    const departments = new Set();
+    
+    // Extract unique colleges and departments
+    Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+        const college = row.dataset.college;
+        const department = row.dataset.department;
+        
+        if (college) colleges.add(college);
+        if (department) departments.add(department);
+    });
+    
+    // Populate college dropdown
+    colleges.forEach(college => {
+        const option = document.createElement('option');
+        option.value = college;
+        option.textContent = college;
+        collegeSelect.appendChild(option);
+    });
+    
+    // Populate department dropdown
+    departments.forEach(department => {
+        const option = document.createElement('option');
+        option.value = department;
+        option.textContent = department;
+        departmentSelect.appendChild(option);
+    });
+}
+
+function filterAttendance() {
+    const dateFilter = document.getElementById('filterDate').value;
+    const collegeFilter = document.getElementById('filterCollege').value;
+    const departmentFilter = document.getElementById('filterDepartment').value;
+    const statusFilter = document.getElementById('filterStatus').value;
+    
+    const table = document.getElementById('attendanceTable');
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    
+    let visibleCount = 0;
+    let presentCount = 0;
+    let lateCount = 0;
+    
+    rows.forEach(row => {
+        let show = true;
+        
+        if (dateFilter && row.dataset.date !== dateFilter) show = false;
+        if (collegeFilter && row.dataset.college !== collegeFilter) show = false;
+        if (departmentFilter && row.dataset.department !== departmentFilter) show = false;
+        if (statusFilter && row.dataset.status !== statusFilter) show = false;
+        
+        row.style.display = show ? '' : 'none';
+        
+        if (show) {
+            visibleCount++;
+            if (row.dataset.status === 'present') presentCount++;
+            if (row.dataset.status === 'late') lateCount++;
+        }
+    });
+    
+    // Update statistics
+    document.getElementById('totalAttendance').textContent = visibleCount;
+    document.getElementById('presentCount').textContent = presentCount;
+    document.getElementById('lateCount').textContent = lateCount;
+    
+    const attendanceRate = visibleCount > 0 ? (presentCount / visibleCount * 100).toFixed(1) : 0;
+    document.getElementById('attendanceRate').textContent = attendanceRate + '%';
+}
+
+function exportToCSV() {
+    const table = document.getElementById('attendanceTable');
+    const rows = Array.from(table.querySelectorAll('tr'));
+    const visibleRows = rows.filter(row => row.style.display !== 'none');
+    
+    let csv = [];
+    
+    // Header row
+    const headers = Array.from(visibleRows[0].querySelectorAll('th')).map(th => th.textContent.trim());
+    csv.push(headers.join(','));
+    
+    // Data rows
+    visibleRows.slice(1).forEach(row => {
+        const cells = Array.from(row.querySelectorAll('td')).map(td => {
+            // Clean cell content (remove HTML tags and extra whitespace)
+            return td.textContent.trim().replace(/\s+/g, ' ');
+        });
+        csv.push(cells.join(','));
+    });
+    
+    // Download CSV
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_report_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+function exportToPDF() {
+    // This would require a PDF library like jsPDF
+    alert('PDF export functionality will be implemented with jsPDF library');
+}
+
+// Initialize filters when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    populateFilters();
+});
+</script>
+{% endblock %}

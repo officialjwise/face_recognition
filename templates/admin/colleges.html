@@ -1,0 +1,262 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Colleges Management - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="mb-2">Colleges Management</h2>
+            <p class="text-muted mb-0">Manage colleges and universities in the system</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCollegeModal">
+                <i class="fas fa-plus me-2"></i>Add New College
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Colleges Grid -->
+<div class="row">
+    {% if colleges %}
+        {% for college in colleges %}
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-university me-2"></i>{{ college.name }}
+                        </h6>
+                        <span class="badge bg-light text-dark">{{ college.code }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if college.address %}
+                    <p class="text-muted mb-2">
+                        <i class="fas fa-map-marker-alt me-2"></i>{{ college.address }}
+                    </p>
+                    {% endif %}
+                    
+                    {% if college.phone %}
+                    <p class="text-muted mb-2">
+                        <i class="fas fa-phone me-2"></i>{{ college.phone }}
+                    </p>
+                    {% endif %}
+                    
+                    {% if college.email %}
+                    <p class="text-muted mb-2">
+                        <i class="fas fa-envelope me-2"></i>{{ college.email }}
+                    </p>
+                    {% endif %}
+                    
+                    {% if college.established_year %}
+                    <p class="text-muted mb-2">
+                        <i class="fas fa-calendar me-2"></i>Established: {{ college.established_year }}
+                    </p>
+                    {% endif %}
+                    
+                    <div class="mt-3">
+                        {% if college.status == 'active' %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-check me-1"></i>Active
+                            </span>
+                        {% else %}
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-pause me-1"></i>Inactive
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="btn-group w-100" role="group">
+                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                                onclick="viewCollegeDepartments({{ college.id }}, '{{ college.name }}')">
+                            <i class="fas fa-building me-1"></i>Departments
+                        </button>
+                        <button type="button" class="btn btn-outline-warning btn-sm" 
+                                onclick="editCollege({{ college.id }})">
+                            <i class="fas fa-edit me-1"></i>Edit
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                onclick="deleteCollege({{ college.id }}, '{{ college.name }}')">
+                            <i class="fas fa-trash me-1"></i>Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="col-12">
+        <div class="text-center py-5">
+            <i class="fas fa-university fa-4x text-muted mb-3"></i>
+            <h5 class="text-muted">No Colleges Added</h5>
+            <p class="text-muted mb-4">Get started by adding the first college to the system</p>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCollegeModal">
+                <i class="fas fa-plus me-2"></i>Add First College
+            </button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add College Modal -->
+<div class="modal fade" id="addCollegeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-university me-2"></i>Add New College
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">College Name *</label>
+                        <input type="text" class="form-control" name="name" required 
+                               placeholder="e.g., University of Technology">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="code" class="form-label">College Code *</label>
+                        <input type="text" class="form-control" name="code" required 
+                               placeholder="e.g., UTECH" maxlength="10">
+                        <div class="form-text">Short code for the college (max 10 characters)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Address</label>
+                        <textarea class="form-control" name="address" rows="2" 
+                                  placeholder="Full address of the college"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Phone</label>
+                                <input type="tel" class="form-control" name="phone" 
+                                       placeholder="+1-555-0100">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" name="email" 
+                                       placeholder="info@college.edu">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="established_year" class="form-label">Established Year</label>
+                        <input type="number" class="form-control" name="established_year" 
+                               min="1800" max="2030" placeholder="2000">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Save College
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- College Departments Modal -->
+<div class="modal fade" id="departmentsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="departmentsModalTitle">
+                    <i class="fas fa-building me-2"></i>College Departments
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="departmentsModalBody">
+                <!-- Departments will be loaded here -->
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="/admin/departments" class="btn btn-primary">
+                    <i class="fas fa-cog me-2"></i>Manage Departments
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function viewCollegeDepartments(collegeId, collegeName) {
+    const modal = new bootstrap.Modal(document.getElementById('departmentsModal'));
+    document.getElementById('departmentsModalTitle').innerHTML = 
+        `<i class="fas fa-building me-2"></i>Departments - ${collegeName}`;
+    
+    // In a real implementation, this would fetch departments via AJAX
+    document.getElementById('departmentsModalBody').innerHTML = `
+        <div class="alert alert-info">
+            <h6><i class="fas fa-info-circle me-2"></i>Departments for ${collegeName}</h6>
+            <p class="mb-0">This would show all departments belonging to this college. 
+            Use the "Manage Departments" button to add or modify departments.</p>
+        </div>
+        <div class="text-center">
+            <p class="text-muted">Feature coming soon...</p>
+        </div>
+    `;
+    
+    modal.show();
+}
+
+function editCollege(collegeId) {
+    // In a real implementation, this would populate a form with existing data
+    alert('Edit functionality would open a form pre-filled with college data for ID: ' + collegeId);
+}
+
+function deleteCollege(collegeId, collegeName) {
+    if (confirm(`Are you sure you want to delete "${collegeName}"? This action cannot be undone and will affect all associated departments and students.`)) {
+        // In a real implementation, this would send a DELETE request
+        alert(`College "${collegeName}" would be deleted from the system`);
+        location.reload(); // Reload to show changes
+    }
+}
+
+// Form validation
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('#addCollegeModal form');
+    const codeInput = form.querySelector('input[name="code"]');
+    
+    // Convert code to uppercase
+    codeInput.addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+    
+    // Form submission handling
+    form.addEventListener('submit', function(e) {
+        const name = form.querySelector('input[name="name"]').value.trim();
+        const code = form.querySelector('input[name="code"]').value.trim();
+        
+        if (!name || !code) {
+            e.preventDefault();
+            alert('Please fill in all required fields');
+            return;
+        }
+        
+        if (code.length < 2) {
+            e.preventDefault();
+            alert('College code must be at least 2 characters long');
+            return;
+        }
+    });
+});
+</script>
+{% endblock %}

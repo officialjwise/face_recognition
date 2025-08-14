@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Student{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <h2>Verify Student Identity</h2>
+        <p class="text-muted">Upload a photo to verify a student's identity using face recognition.</p>
+        
+        <div class="card">
+            <div class="card-body">
+                <form id="verifyForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="verifyPhoto" class="form-label">Select Photo for Verification</label>
+                        <input type="file" class="form-control" id="verifyPhoto" accept="image/*" required>
+                        <div class="form-text">Upload a clear photo of the student's face</div>
+                    </div>
+                    
+                    <div id="verifyPreview" class="mb-3"></div>
+                    
+                    <button type="submit" class="btn btn-primary">Verify Identity</button>
+                </form>
+                
+                <div id="verifyResult" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const verifyForm = document.getElementById('verifyForm');
+    const verifyPhoto = document.getElementById('verifyPhoto');
+    const verifyPreview = document.getElementById('verifyPreview');
+    const verifyResult = document.getElementById('verifyResult');
+    
+    verifyPhoto.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                verifyPreview.innerHTML = `
+                    <img src="${e.target.result}" class="img-thumbnail" style="max-width: 300px;" alt="Verification Photo">
+                `;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            verifyPreview.innerHTML = '';
+        }
+    });
+    
+    verifyForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const file = verifyPhoto.files[0];
+        if (!file) {
+            alert('Please select a photo first.');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        verifyResult.innerHTML = `
+            <div class="alert alert-info">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                Processing image and verifying identity...
+            </div>
+        `;
+        
+        try {
+            const response = await fetch('/verify_face', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                verifyResult.innerHTML = `
+                    <div class="alert alert-success">
+                        <h5><i class="fas fa-check-circle"></i> Identity Verified!</h5>
+                        <p><strong>Student:</strong> ${data.student.name}</p>
+                        <p><strong>Student ID:</strong> ${data.student.student_id}</p>
+                        <p><strong>Confidence:</strong> ${data.student.confidence}%</p>
+                    </div>
+                `;
+            } else {
+                verifyResult.innerHTML = `
+                    <div class="alert alert-warning">
+                        <h5><i class="fas fa-exclamation-triangle"></i> No Match Found</h5>
+                        <p>${data.message}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            verifyResult.innerHTML = `
+                <div class="alert alert-danger">
+                    <h5><i class="fas fa-times-circle"></i> Error</h5>
+                    <p>An error occurred during verification: ${error.message}</p>
+                </div>
+            `;
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Verification - Face Recognition System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .verification-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        
+        .video-container {
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            margin: 20px 0;
+        }
+        
+        #video {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            border-radius: 15px;
+        }
+        
+        .btn-verify {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .btn-verify:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(40, 167, 69, 0.4);
+        }
+        
+        .navbar {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .navbar-brand, .nav-link {
+            color: white !important;
+        }
+        
+        .face-detection-box {
+            position: absolute;
+            border: 3px solid #00ff00;
+            border-radius: 5px;
+            background: rgba(0, 255, 0, 0.1);
+        }
+        
+        .detection-status {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .student-profile {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 20px;
+        }
+        
+        .profile-photo {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 5px solid white;
+            object-fit: cover;
+            margin: 0 auto 20px;
+            display: block;
+        }
+        
+        .exam-room-badge {
+            background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+            padding: 15px 25px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .exam-room-badge h3 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .confidence-badge {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 50px;
+            padding: 10px 20px;
+            display: inline-block;
+            margin: 10px 0;
+        }
+        
+        .verification-steps {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-graduation-cap me-2"></i>
+                Student Face Recognition System
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">Home</a>
+                <a class="nav-link" href="/student/register">Register</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container my-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="verification-card p-5">
+                    <div class="text-center mb-4">
+                        <h2 class="text-primary mb-3">
+                            <i class="fas fa-camera me-2"></i>
+                            Face Verification
+                        </h2>
+                        <p class="text-muted">Verify your identity to check exam attendance and get room assignment</p>
+                    </div>
+
+                    <!-- Verification Section -->
+                    <div id="verificationSection">
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="verification-steps text-white">
+                                    <h5 class="mb-3">
+                                        <i class="fas fa-list-check me-2"></i>Verification Steps
+                                    </h5>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-check-circle text-success me-2"></i>
+                                        <span>Position your face in the camera view</span>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-check-circle text-success me-2"></i>
+                                        <span>Ensure good lighting</span>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-check-circle text-success me-2"></i>
+                                        <span>Look directly at the camera</span>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-clock text-warning me-2"></i>
+                                        <span>Click verify when ready</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-info-circle me-2"></i>What happens next?</h6>
+                                    <ul class="mb-0">
+                                        <li>Your face will be matched against registered students</li>
+                                        <li>Your profile and exam details will be displayed</li>
+                                        <li>Your exam room will be assigned based on your index number</li>
+                                        <li>Your attendance will be automatically marked</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-6">
+                                <div class="video-container text-center">
+                                    <video id="video" autoplay muted></video>
+                                    <div class="detection-status" id="detectionStatus">
+                                        <i class="fas fa-search me-1"></i>Initializing camera...
+                                    </div>
+                                </div>
+                                
+                                <div class="text-center mt-3">
+                                    <button type="button" class="btn btn-verify" id="verifyBtn">
+                                        <i class="fas fa-check-circle me-2"></i>Verify Identity
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Student Profile Section (Hidden initially) -->
+                    <div id="studentProfile" style="display: none;">
+                        <div class="student-profile">
+                            <div class="row">
+                                <div class="col-lg-4 text-center">
+                                    <div id="studentPhoto"></div>
+                                    <div class="confidence-badge">
+                                        <i class="fas fa-chart-line me-2"></i>
+                                        <span id="confidenceScore">95%</span> Match Confidence
+                                    </div>
+                                </div>
+                                
+                                <div class="col-lg-8">
+                                    <h3 class="mb-3">
+                                        <i class="fas fa-user-graduate me-2"></i>
+                                        <span id="studentName">Student Name</span>
+                                    </h3>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <p><strong>Index Number:</strong> <span id="indexNumber"></span></p>
+                                            <p><strong>Student ID:</strong> <span id="studentId"></span></p>
+                                            <p><strong>Email:</strong> <span id="studentEmail"></span></p>
+                                            <p><strong>Year of Study:</strong> <span id="yearOfStudy"></span></p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p><strong>College:</strong> <span id="college"></span></p>
+                                            <p><strong>Department:</strong> <span id="department"></span></p>
+                                            <p><strong>Academic Year:</strong> <span id="academicYear"></span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Exam Room Assignment -->
+                            <div id="examRoomSection">
+                                <div class="exam-room-badge">
+                                    <h5 class="mb-2">
+                                        <i class="fas fa-door-open me-2"></i>Exam Room Assignment
+                                    </h5>
+                                    <h3 id="examRoom">Room SF26</h3>
+                                    <p class="mb-0" id="building">Science Building</p>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="text-center">
+                                            <i class="fas fa-book fa-2x mb-2"></i>
+                                            <h6>Exam</h6>
+                                            <p id="examTitle">Mathematics Final</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="text-center">
+                                            <i class="fas fa-calendar fa-2x mb-2"></i>
+                                            <h6>Date</h6>
+                                            <p id="examDate">2025-08-15</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="text-center">
+                                            <i class="fas fa-clock fa-2x mb-2"></i>
+                                            <h6>Time</h6>
+                                            <p id="examTime">09:00 - 12:00</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-success mt-3">
+                                <h6><i class="fas fa-check-circle me-2"></i>Attendance Confirmed!</h6>
+                                <p class="mb-0">Your exam attendance has been successfully recorded.</p>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button type="button" class="btn btn-secondary" onclick="resetVerification()">
+                                <i class="fas fa-redo me-2"></i>Verify Another Student
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <h5>Verifying Identity...</h5>
+                    <p class="text-muted mb-0">Please wait while we process your face data</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Face API.js for dynamic face detection -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script>
+        let video;
+        let faceDetectionInterval;
+        let faceApiLoaded = false;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            video = document.getElementById('video');
+            
+            // Load face-api.js models first
+            loadFaceApiModels().then(() => {
+                faceApiLoaded = true;
+                initializeCamera();
+            });
+            
+            // Verify button handler
+            document.getElementById('verifyBtn').addEventListener('click', verifyIdentity);
+        });
+        
+        async function loadFaceApiModels() {
+            try {
+                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                console.log('Face API models loaded successfully');
+                return true;
+            } catch (error) {
+                console.error('Error loading Face API models:', error);
+                return false;
+            }
+        }
+        
+        function initializeCamera() {
+            navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: 640, 
+                    height: 480,
+                    facingMode: 'user'
+                } 
+            })
+            .then(stream => {
+                video.srcObject = stream;
+                video.addEventListener('loadedmetadata', () => {
+                    startFaceDetection();
+                });
+            })
+            .catch(err => {
+                console.error('Error accessing camera:', err);
+                document.getElementById('detectionStatus').innerHTML = 
+                    '<i class="fas fa-exclamation-triangle me-1"></i>Camera access denied';
+            });
+        }
+        
+        function startFaceDetection() {
+            clearInterval(faceDetectionInterval);
+            
+            // Create overlay canvas for face detection visualization
+            let overlay = document.getElementById('faceOverlay');
+            if (!overlay) {
+                overlay = document.createElement('canvas');
+                overlay.id = 'faceOverlay';
+                overlay.style.position = 'absolute';
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.pointerEvents = 'none';
+                overlay.style.borderRadius = '15px';
+                video.parentNode.style.position = 'relative';
+                video.parentNode.appendChild(overlay);
+            }
+            
+            const overlayCtx = overlay.getContext('2d');
+            
+            faceDetectionInterval = setInterval(async () => {
+                if (video.videoWidth > 0 && video.videoHeight > 0 && faceApiLoaded) {
+                    // Set overlay size to match video display
+                    overlay.width = video.offsetWidth;
+                    overlay.height = video.offsetHeight;
+                    
+                    // Clear previous detections
+                    overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+                    
+                    try {
+                        // Detect faces with face-api.js
+                        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({
+                            inputSize: 416,
+                            scoreThreshold: 0.5
+                        })).withFaceLandmarks();
+                        
+                        const status = document.getElementById('detectionStatus');
+                        const verifyBtn = document.getElementById('verifyBtn');
+                        
+                        if (detections.length > 0) {
+                            // Face detected
+                            status.innerHTML = '<i class="fas fa-check-circle me-1"></i>Face detected - Ready to verify';
+                            status.style.background = 'rgba(40, 167, 69, 0.8)';
+                            verifyBtn.disabled = false;
+                            
+                            // Draw bounding boxes and landmarks
+                            const scaleX = overlay.width / video.videoWidth;
+                            const scaleY = overlay.height / video.videoHeight;
+                            
+                            detections.forEach(detection => {
+                                const { x, y, width, height } = detection.detection.box;
+                                
+                                // Draw dynamic face bounding box with modern styling
+                                overlayCtx.strokeStyle = '#28a745';
+                                overlayCtx.lineWidth = 3;
+                                
+                                // Draw animated scanning lines
+                                const time = Date.now() / 1000;
+                                const scanLineY = y * scaleY + (Math.sin(time * 2) * 0.5 + 0.5) * height * scaleY;
+                                
+                                overlayCtx.strokeRect(
+                                    x * scaleX,
+                                    y * scaleY,
+                                    width * scaleX,
+                                    height * scaleY
+                                );
+                                
+                                // Draw scanning line
+                                overlayCtx.strokeStyle = '#00ff00';
+                                overlayCtx.lineWidth = 2;
+                                overlayCtx.beginPath();
+                                overlayCtx.moveTo(x * scaleX, scanLineY);
+                                overlayCtx.lineTo((x + width) * scaleX, scanLineY);
+                                overlayCtx.stroke();
+                                
+                                // Draw corner indicators for targeting effect
+                                const cornerSize = 25;
+                                overlayCtx.strokeStyle = '#20c997';
+                                overlayCtx.lineWidth = 4;
+                                
+                                // Animated corner brackets
+                                const cornerOffset = Math.sin(time * 3) * 5;
+                                
+                                // Top-left corner
+                                overlayCtx.beginPath();
+                                overlayCtx.moveTo(x * scaleX, y * scaleY + cornerSize + cornerOffset);
+                                overlayCtx.lineTo(x * scaleX, y * scaleY);
+                                overlayCtx.lineTo(x * scaleX + cornerSize + cornerOffset, y * scaleY);
+                                overlayCtx.stroke();
+                                
+                                // Top-right corner
+                                overlayCtx.beginPath();
+                                overlayCtx.moveTo((x + width) * scaleX - cornerSize - cornerOffset, y * scaleY);
+                                overlayCtx.lineTo((x + width) * scaleX, y * scaleY);
+                                overlayCtx.lineTo((x + width) * scaleX, y * scaleY + cornerSize + cornerOffset);
+                                overlayCtx.stroke();
+                                
+                                // Bottom-left corner
+                                overlayCtx.beginPath();
+                                overlayCtx.moveTo(x * scaleX, (y + height) * scaleY - cornerSize - cornerOffset);
+                                overlayCtx.lineTo(x * scaleX, (y + height) * scaleY);
+                                overlayCtx.lineTo(x * scaleX + cornerSize + cornerOffset, (y + height) * scaleY);
+                                overlayCtx.stroke();
+                                
+                                // Bottom-right corner
+                                overlayCtx.beginPath();
+                                overlayCtx.moveTo((x + width) * scaleX - cornerSize - cornerOffset, (y + height) * scaleY);
+                                overlayCtx.lineTo((x + width) * scaleX, (y + height) * scaleY);
+                                overlayCtx.lineTo((x + width) * scaleX, (y + height) * scaleY - cornerSize - cornerOffset);
+                                overlayCtx.stroke();
+                                
+                                // Add verification confidence text
+                                overlayCtx.fillStyle = '#28a745';
+                                overlayCtx.font = 'bold 16px Arial';
+                                overlayCtx.fillText(
+                                    `Ready to verify (${(detection.detection.score * 100).toFixed(1)}%)`,
+                                    x * scaleX,
+                                    y * scaleY - 30
+                                );
+                                
+                                // Add verification instruction
+                                overlayCtx.fillStyle = '#ffffff';
+                                overlayCtx.font = 'bold 14px Arial';
+                                overlayCtx.strokeStyle = '#000000';
+                                overlayCtx.lineWidth = 2;
+                                overlayCtx.strokeText(
+                                    'Hold steady and click Verify',
+                                    x * scaleX,
+                                    (y + height) * scaleY + 25
+                                );
+                                overlayCtx.fillText(
+                                    'Hold steady and click Verify',
+                                    x * scaleX,
+                                    (y + height) * scaleY + 25
+                                );
+                                
+                                // Draw eye indicators for better positioning
+                                if (detection.landmarks) {
+                                    overlayCtx.fillStyle = '#20c997';
+                                    const landmarks = detection.landmarks;
+                                    const leftEye = landmarks.getLeftEye();
+                                    const rightEye = landmarks.getRightEye();
+                                    
+                                    // Draw eye center points
+                                    [leftEye, rightEye].forEach(eye => {
+                                        let centerX = 0, centerY = 0;
+                                        eye.forEach(point => {
+                                            centerX += point.x;
+                                            centerY += point.y;
+                                        });
+                                        centerX = (centerX / eye.length) * scaleX;
+                                        centerY = (centerY / eye.length) * scaleY;
+                                        
+                                        overlayCtx.beginPath();
+                                        overlayCtx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
+                                        overlayCtx.fill();
+                                    });
+                                }
+                            });
+                            
+                        } else {
+                            // No face detected
+                            status.innerHTML = '<i class="fas fa-search me-1"></i>Position your face in the camera';
+                            status.style.background = 'rgba(255, 193, 7, 0.8)';
+                            verifyBtn.disabled = true;
+                            
+                            // Draw guide box for face positioning
+                            overlayCtx.strokeStyle = '#ffc107';
+                            overlayCtx.lineWidth = 2;
+                            overlayCtx.setLineDash([15, 10]);
+                            
+                            const guideWidth = overlay.width * 0.5;
+                            const guideHeight = overlay.height * 0.6;
+                            const guideX = (overlay.width - guideWidth) / 2;
+                            const guideY = (overlay.height - guideHeight) / 2;
+                            
+                            overlayCtx.strokeRect(guideX, guideY, guideWidth, guideHeight);
+                            overlayCtx.setLineDash([]);
+                            
+                            // Guide text with better visibility
+                            overlayCtx.fillStyle = '#ffc107';
+                            overlayCtx.font = 'bold 18px Arial';
+                            overlayCtx.strokeStyle = '#000000';
+                            overlayCtx.lineWidth = 2;
+                            overlayCtx.textAlign = 'center';
+                            
+                            overlayCtx.strokeText('Position your face here', overlay.width / 2, guideY - 15);
+                            overlayCtx.fillText('Position your face here', overlay.width / 2, guideY - 15);
+                            
+                            overlayCtx.font = 'bold 14px Arial';
+                            overlayCtx.strokeText('Look directly at the camera', overlay.width / 2, guideY + guideHeight + 25);
+                            overlayCtx.fillText('Look directly at the camera', overlay.width / 2, guideY + guideHeight + 25);
+                            
+                            overlayCtx.textAlign = 'left';
+                        }
+                        
+                    } catch (error) {
+                        console.error('Face detection error:', error);
+                        const status = document.getElementById('detectionStatus');
+                        status.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Detection error';
+                        status.style.background = 'rgba(220, 53, 69, 0.8)';
+                        document.getElementById('verifyBtn').disabled = true;
+                    }
+                } else if (!faceApiLoaded) {
+                    // Show loading state while models are loading
+                    const status = document.getElementById('detectionStatus');
+                    status.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading face detection...';
+                    status.style.background = 'rgba(0, 123, 255, 0.8)';
+                    document.getElementById('verifyBtn').disabled = true;
+                }
+            }, 100); // Update every 100ms for smooth animation
+        }
+        
+        function verifyIdentity() {
+            // Show loading modal
+            new bootstrap.Modal(document.getElementById('loadingModal')).show();
+            
+            // Capture current frame
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            
+            // Submit for verification
+            fetch('/student/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ face_image: imageData })
+            })
+            .then(response => response.json())
+            .then(result => {
+                // Hide loading modal
+                bootstrap.Modal.getInstance(document.getElementById('loadingModal')).hide();
+                
+                if (result.success) {
+                    displayStudentProfile(result.student, result.attendance_marked);
+                } else {
+                    alert('Verification failed: ' + result.message);
+                }
+            })
+            .catch(error => {
+                // Hide loading modal
+                bootstrap.Modal.getInstance(document.getElementById('loadingModal')).hide();
+                console.error('Error:', error);
+                alert('Verification failed. Please try again.');
+            });
+        }
+        
+        function displayStudentProfile(student, attendanceMarked) {
+            // Stop face detection
+            clearInterval(faceDetectionInterval);
+            
+            // Hide verification section
+            document.getElementById('verificationSection').style.display = 'none';
+            
+            // Populate student data
+            document.getElementById('studentName').textContent = student.name;
+            document.getElementById('indexNumber').textContent = student.index_number;
+            document.getElementById('studentId').textContent = student.student_id;
+            document.getElementById('studentEmail').textContent = student.email;
+            document.getElementById('college').textContent = student.college;
+            document.getElementById('department').textContent = student.department;
+            document.getElementById('yearOfStudy').textContent = student.year_of_study + getOrdinalSuffix(student.year_of_study) + ' Year';
+            document.getElementById('academicYear').textContent = student.academic_year;
+            document.getElementById('confidenceScore').textContent = student.confidence + '%';
+            
+            // Exam room information
+            if (student.exam_room && student.exam_room !== 'Not Assigned') {
+                document.getElementById('examRoom').textContent = student.exam_room;
+                document.getElementById('building').textContent = student.building;
+                document.getElementById('examTitle').textContent = student.exam_title || 'Exam Session';
+                document.getElementById('examDate').textContent = student.exam_date || 'TBD';
+                document.getElementById('examTime').textContent = student.exam_time || 'TBD';
+            } else {
+                document.getElementById('examRoomSection').innerHTML = `
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-exclamation-triangle me-2"></i>No Exam Room Assigned</h6>
+                        <p class="mb-0">No active exam session found for your index number. Please contact admin.</p>
+                    </div>
+                `;
+            }
+            
+            // Show student profile
+            document.getElementById('studentProfile').style.display = 'block';
+        }
+        
+        function getOrdinalSuffix(num) {
+            const ones = num % 10;
+            const tens = Math.floor(num / 10) % 10;
+            if (tens === 1) return 'th';
+            switch (ones) {
+                case 1: return 'st';
+                case 2: return 'nd';
+                case 3: return 'rd';
+                default: return 'th';
+            }
+        }
+        
+        function resetVerification() {
+            // Show verification section
+            document.getElementById('verificationSection').style.display = 'block';
+            
+            // Hide student profile
+            document.getElementById('studentProfile').style.display = 'none';
+            
+            // Restart face detection
+            startFaceDetection();
+        }
+    </script>
+</body>
+</html>

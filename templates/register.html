@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block title %}Register Student{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <h2>Register New Student</h2>
+        <form method="POST" enctype="multipart/form-data" id="registrationForm">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="first_name" class="form-label">First Name *</label>
+                        <input type="text" class="form-control" id="first_name" name="first_name" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="middle_name" class="form-label">Middle Name</label>
+                        <input type="text" class="form-control" id="middle_name" name="middle_name">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="last_name" class="form-label">Last Name *</label>
+                <input type="text" class="form-control" id="last_name" name="last_name" required>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="index_number" class="form-label">Index Number (7 digits) *</label>
+                        <input type="text" class="form-control" id="index_number" name="index_number" 
+                               pattern="[0-9]{7}" maxlength="7" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="student_id" class="form-label">Student ID (8 digits) *</label>
+                        <input type="text" class="form-control" id="student_id" name="student_id" 
+                               pattern="[0-9]{8}" maxlength="8" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="form-label">Photo Capture Method</label>
+                <div class="card">
+                    <div class="card-body">
+                        <!-- Camera compatibility notice -->
+                        <div id="cameraNotice" class="alert alert-info" style="display: none;">
+                            <strong>Camera Requirements:</strong> 
+                            <ul class="mb-0 mt-2">
+                                <li>Grant camera permission when prompted</li>
+                                <li>Use HTTPS for camera access (or localhost)</li>
+                                <li>Ensure your browser supports camera access</li>
+                            </ul>
+                        </div>
+                        
+                        <ul class="nav nav-tabs" id="photoTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#upload-pane" type="button">Upload Photo</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="camera-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#camera-pane" type="button">Use Camera</button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content mt-3" id="photoTabContent">
+                            <div class="tab-pane fade show active" id="upload-pane">
+                                <div class="mb-3">
+                                    <label for="photo" class="form-label">Upload Photo</label>
+                                    <input type="file" class="form-control" id="photo" name="photo" 
+                                           accept="image/png,image/jpg,image/jpeg">
+                                    <div class="form-text">Supported formats: JPG, JPEG, PNG</div>
+                                </div>
+                                <div id="imagePreview" class="mt-2"></div>
+                            </div>
+                            
+                            <div class="tab-pane fade" id="camera-pane">
+                                <div class="camera-container">
+                                    <div class="mb-3">
+                                        <button type="button" class="btn btn-info" id="startCamera">Start Camera</button>
+                                        <button type="button" class="btn btn-warning" id="capturePhoto" disabled>Capture Photo</button>
+                                        <button type="button" class="btn btn-secondary" id="stopCamera" disabled>Stop Camera</button>
+                                    </div>
+                                    
+                                    <!-- Error messages -->
+                                    <div id="cameraError" class="alert alert-danger" style="display: none;"></div>
+                                    <div id="cameraStatus" class="alert alert-success" style="display: none;"></div>
+                                    
+                                    <video id="video" autoplay playsinline style="display: none; width: 100%; max-width: 640px; height: auto; border: 2px solid #007bff; border-radius: 8px;"></video>
+                                    <canvas id="canvas" style="display: none;"></canvas>
+                                    <div id="capturedPhoto"></div>
+                                </div>
+                                <input type="hidden" id="camera_data" name="camera_data">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg">Register Student</button>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Page loaded, initializing camera functionality...');
+    
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const capturedPhotoDiv = document.getElementById('capturedPhoto');
+    const cameraDataInput = document.getElementById('camera_data');
+    const startCameraBtn = document.getElementById('startCamera');
+    const capturePhotoBtn = document.getElementById('capturePhoto');
+    const stopCameraBtn = document.getElementById('stopCamera');
+    const photoInput = document.getElementById('photo');
+    const imagePreview = document.getElementById('imagePreview');
+    const cameraError = document.getElementById('cameraError');
+    const cameraStatus = document.getElementById('cameraStatus');
+    const cameraNotice = document.getElementById('cameraNotice');
+    
+    let stream = null;
+    
+    // Check camera support on page load
+    function checkCameraSupport() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showError('Camera not supported by this browser. Please use file upload instead.');
+            startCameraBtn.disabled = true;
+            return false;
+        }
+        return true;
+    }
+    
+    function showError(message) {
+        cameraError.textContent = message;
+        cameraError.style.display = 'block';
+        cameraStatus.style.display = 'none';
+        console.error('Camera error:', message);
+    }
+    
+    function showStatus(message) {
+        cameraStatus.textContent = message;
+        cameraStatus.style.display = 'block';
+        cameraError.style.display = 'none';
+        console.log('Camera status:', message);
+    }
+    
+    function hideMessages() {
+        cameraError.style.display = 'none';
+        cameraStatus.style.display = 'none';
+    }
+    
+    // Initialize camera support check
+    checkCameraSupport();
+    
+    // Image preview for file upload
+    photoInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // Validate file size (max 10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                alert('File size too large. Please select a file smaller than 10MB.');
+                this.value = '';
+                imagePreview.innerHTML = '';
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.innerHTML = '<img src="' + e.target.result + '" class="preview-image img-thumbnail" alt="Preview">';
+            };
+            reader.onerror = function() {
+                alert('Error reading file. Please try again.');
+                imagePreview.innerHTML = '';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            imagePreview.innerHTML = '';
+        }
+    });
+    
+    // Camera functionality
+    startCameraBtn.addEventListener('click', async function() {
+        console.log('Start camera button clicked');
+        hideMessages();
+        
+        if (!checkCameraSupport()) {
+            return;
+        }
+        
+        try {
+            showStatus('Requesting camera access...');
+            
+            // Try different camera configurations
+            const constraints = [
+                { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } },
+                { video: { width: 640, height: 480 } },
+                { video: true }
+            ];
+            
+            let cameraStarted = false;
+            
+            for (let constraint of constraints) {
+                try {
+                    console.log('Trying camera constraint:', constraint);
+                    stream = await navigator.mediaDevices.getUserMedia(constraint);
+                    cameraStarted = true;
+                    break;
+                } catch (constraintError) {
+                    console.warn('Camera constraint failed:', constraint, constraintError);
+                }
+            }
+            
+            if (!cameraStarted) {
+                throw new Error('Unable to access camera with any configuration');
+            }
+            
+            video.srcObject = stream;
+            
+            // Wait for video to load
+            video.onloadedmetadata = function() {
+                console.log('Video metadata loaded');
+                video.play().then(() => {
+                    console.log('Video playing successfully');
+                    video.style.display = 'block';
+                    canvas.style.display = 'none';
+                    capturedPhotoDiv.innerHTML = '';
+                    cameraDataInput.value = '';
+                    
+                    startCameraBtn.disabled = true;
+                    capturePhotoBtn.disabled = false;
+                    stopCameraBtn.disabled = false;
+                    
+                    showStatus('Camera started successfully! You can now capture a photo.');
+                }).catch(playError => {
+                    console.error('Error playing video:', playError);
+                    showError('Error starting video playback: ' + playError.message);
+                });
+            };
+            
+            video.onerror = function(videoError) {
+                console.error('Video error:', videoError);
+                showError('Video playback error. Please try again.');
+            };
+            
+        } catch (err) {
+            console.error('Camera access error:', err);
+            
+            let errorMessage = 'Error accessing camera: ';
+            if (err.name === 'NotAllowedError') {
+                errorMessage += 'Camera permission denied. Please allow camera access and try again.';
+            } else if (err.name === 'NotFoundError') {
+                errorMessage += 'No camera found. Please connect a camera and try again.';
+            } else if (err.name === 'NotSupportedError') {
+                errorMessage += 'Camera not supported by this browser.';
+            } else if (err.name === 'NotReadableError') {
+                errorMessage += 'Camera is already in use by another application.';
+            } else {
+                errorMessage += err.message || 'Unknown error occurred.';
+            }
+            
+            showError(errorMessage);
+            cameraNotice.style.display = 'block';
+        }
+    });
+    
+    capturePhotoBtn.addEventListener('click', function() {
+        console.log('Capture photo button clicked');
+        
+        if (!video.videoWidth || !video.videoHeight) {
+            showError('Video not ready. Please wait for camera to fully load.');
+            return;
+        }
+        
+        try {
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+            
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            cameraDataInput.value = imageData;
+            
+            capturedPhotoDiv.innerHTML = 
+                '<div class="mt-2">' +
+                '<p><strong>Captured Photo:</strong></p>' +
+                '<img src="' + imageData + '" class="preview-image img-thumbnail" alt="Captured" style="max-width: 300px;">' +
+                '</div>';
+            
+            video.style.display = 'none';
+            canvas.style.display = 'none';
+            
+            showStatus('Photo captured successfully!');
+            
+        } catch (captureError) {
+            console.error('Error capturing photo:', captureError);
+            showError('Error capturing photo: ' + captureError.message);
+        }
+    });
+    
+    stopCameraBtn.addEventListener('click', function() {
+        console.log('Stop camera button clicked');
+        stopCamera();
+    });
+    
+    function stopCamera() {
+        hideMessages();
+        
+        if (stream) {
+            stream.getTracks().forEach(track => {
+                console.log('Stopping track:', track.kind);
+                track.stop();
+            });
+            stream = null;
+        }
+        
+        video.style.display = 'none';
+        video.srcObject = null;
+        
+        startCameraBtn.disabled = false;
+        capturePhotoBtn.disabled = true;
+        stopCameraBtn.disabled = true;
+        
+        showStatus('Camera stopped.');
+    }
+    
+    // Form validation
+    document.getElementById('registrationForm').addEventListener('submit', function(e) {
+        const hasUploadedPhoto = photoInput.files.length > 0;
+        const hasCapturedPhoto = cameraDataInput.value !== '';
+        
+        if (!hasUploadedPhoto && !hasCapturedPhoto) {
+            e.preventDefault();
+            alert('Please provide a photo either by uploading or using the camera.');
+            return false;
+        }
+        
+        // Clean up camera if still running
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        
+        return true;
+    });
+    
+    // Tab switching cleanup
+    document.getElementById('camera-tab').addEventListener('shown.bs.tab', function() {
+        console.log('Switched to camera tab');
+        // Clear upload when switching to camera
+        photoInput.value = '';
+        imagePreview.innerHTML = '';
+        cameraNotice.style.display = 'block';
+    });
+    
+    document.getElementById('upload-tab').addEventListener('shown.bs.tab', function() {
+        console.log('Switched to upload tab');
+        // Stop camera and clear data when switching to upload
+        stopCamera();
+        capturedPhotoDiv.innerHTML = '';
+        cameraDataInput.value = '';
+        cameraNotice.style.display = 'none';
+    });
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', function() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+    });
+});
+</script>
+{% endblock %}

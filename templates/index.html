@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="jumbotron bg-light p-5 rounded">
+            <h1 class="display-4">Student Face Registration System</h1>
+            <p class="lead">Register students with their facial recognition data for secure identification.</p>
+            <hr class="my-4">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Register New Student</h5>
+                            <p class="card-text">Add a new student with face recognition capabilities.</p>
+                            <a class="btn btn-primary" href="{{ url_for('register') }}">Register Student</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">View Students</h5>
+                            <p class="card-text">Browse all registered students in the system.</p>
+                            <a class="btn btn-secondary" href="{{ url_for('students') }}">View Students</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Verify Identity</h5>
+                            <p class="card-text">Verify a student's identity using face recognition.</p>
+                            <a class="btn btn-success" href="{{ url_for('verify') }}">Verify Student</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

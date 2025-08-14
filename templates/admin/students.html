@@ -1,0 +1,582 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Students Management - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="mb-2">Students Management</h2>
+            <p class="text-muted mb-0">View and manage registered students</p>
+        </div>
+        <div>
+            <a href="/student/register" class="btn btn-primary" target="_blank">
+                <i class="fas fa-user-plus me-2"></i>Register New Student
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Search and Filter -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-lg-4">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" class="form-control" id="searchInput" 
+                                   placeholder="Search students by name, index number, or email...">
+                        </div>
+                    </div>
+                    <div class="col-lg-3">
+                        <select class="form-control" id="collegeFilter">
+                            <option value="">All Colleges</option>
+                            {% for student in students %}
+                                {% if student.college_name not in shown_colleges %}
+                                    {% set shown_colleges = shown_colleges + [student.college_name] if shown_colleges else [student.college_name] %}
+                                    <option value="{{ student.college_name }}">{{ student.college_name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-lg-3">
+                        <select class="form-control" id="statusFilter">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-2">
+                        <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                            <i class="fas fa-times me-1"></i>Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Students Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>
+                    Students List ({{ students|length }})
+                </h5>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary" onclick="exportData()">
+                        <i class="fas fa-download me-1"></i>Export
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% if students %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="studentsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Photo</th>
+                                <th>Name</th>
+                                <th>Index Number</th>
+                                <th>Email</th>
+                                <th>College</th>
+                                <th>Department</th>
+                                <th>Year</th>
+                                <th>Academic Year</th>
+                                <th>Status</th>
+                                <th>Registered</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in students %}
+                            <tr>
+                                <td>
+                                    {% if student.photo_path %}
+                                        <img src="{{ url_for('static', filename=student.photo_path.replace('static/', '')) }}" 
+                                             class="rounded-circle" width="40" height="40" 
+                                             alt="Student Photo" style="object-fit: cover;">
+                                    {% else %}
+                                        <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center" 
+                                             style="width: 40px; height: 40px;">
+                                            <i class="fas fa-user text-white"></i>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div>
+                                        <strong>{{ student.first_name }} {{ student.middle_name }} {{ student.last_name }}</strong>
+                                    </div>
+                                    <small class="text-muted">ID: {{ student.student_id }}</small>
+                                </td>
+                                <td>
+                                    <code class="bg-light px-2 py-1 rounded">{{ student.index_number }}</code>
+                                </td>
+                                <td>
+                                    <a href="mailto:{{ student.email }}" class="text-decoration-none">
+                                        {{ student.email }}
+                                    </a>
+                                </td>
+                                <td>{{ student.college_name }}</td>
+                                <td>{{ student.department_name }}</td>
+                                <td>
+                                    <span class="badge badge-custom">
+                                        Year {{ student.year_of_study }}
+                                    </span>
+                                </td>
+                                <td>{{ student.academic_year }}</td>
+                                <td>
+                                    {% if student.status == 'active' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Active
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="fas fa-pause me-1"></i>Inactive
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted student-date" data-date="{{ student.created_at }}">
+                                        {{ student.created_at }}
+                                    </small>
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-primary" 
+                                                onclick="viewStudent({{ student.id }})" 
+                                                title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning" 
+                                                onclick="editStudent({{ student.id }})" 
+                                                title="Edit Student">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-info" 
+                                                onclick="testRecognition('{{ student.index_number }}')" 
+                                                title="Test Recognition">
+                                            <i class="fas fa-camera"></i>
+                                        </button>
+                                        {% if student.status == 'active' %}
+                                            <button type="button" class="btn btn-outline-secondary" 
+                                                    onclick="toggleStatus({{ student.id }}, 'inactive')" 
+                                                    title="Deactivate">
+                                                <i class="fas fa-pause"></i>
+                                            </button>
+                                        {% else %}
+                                            <button type="button" class="btn btn-outline-success" 
+                                                    onclick="toggleStatus({{ student.id }}, 'active')" 
+                                                    title="Activate">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                        {% endif %}
+                                        <button type="button" class="btn btn-outline-danger" 
+                                                onclick="deleteStudent({{ student.id }}, '{{ student.first_name }} {{ student.last_name }}')" 
+                                                title="Delete Student">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-user-graduate fa-4x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Students Registered</h5>
+                    <p class="text-muted mb-4">Get started by registering the first student</p>
+                    <a href="/student/register" class="btn btn-primary" target="_blank">
+                        <i class="fas fa-user-plus me-2"></i>Register First Student
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Student Details Modal -->
+<div class="modal fade" id="studentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-user-graduate me-2"></i>Student Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="studentModalBody">
+                <!-- Student details will be loaded here -->
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recognition Test Modal -->
+<div class="modal fade" id="recognitionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-camera me-2"></i>Test Face Recognition
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <p>Open the <strong>Student Verification</strong> page to test face recognition for this student.</p>
+                <a href="/student/verify" class="btn btn-primary" target="_blank">
+                    <i class="fas fa-external-link-alt me-2"></i>Open Verification Page
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Format student creation dates
+    document.querySelectorAll('.student-date').forEach(function(element) {
+        const dateString = element.getAttribute('data-date');
+        if (dateString) {
+            element.textContent = moment(dateString).format('MMM DD, YYYY');
+        }
+    });
+    
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    const collegeFilter = document.getElementById('collegeFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    searchInput.addEventListener('input', filterTable);
+    collegeFilter.addEventListener('change', filterTable);
+    statusFilter.addEventListener('change', filterTable);
+});
+
+function filterTable() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const collegeFilter = document.getElementById('collegeFilter').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
+    const table = document.getElementById('studentsTable');
+    const rows = table.getElementsByTagName('tr');
+    
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const cells = row.getElementsByTagName('td');
+        
+        if (cells.length > 0) {
+            const name = cells[1].textContent.toLowerCase();
+            const indexNumber = cells[2].textContent.toLowerCase();
+            const email = cells[3].textContent.toLowerCase();
+            const college = cells[4].textContent.toLowerCase();
+            const status = cells[8].textContent.toLowerCase();
+            
+            const matchesSearch = name.includes(searchTerm) || 
+                                indexNumber.includes(searchTerm) || 
+                                email.includes(searchTerm);
+            const matchesCollege = !collegeFilter || college.includes(collegeFilter);
+            const matchesStatus = !statusFilter || status.includes(statusFilter);
+            
+            if (matchesSearch && matchesCollege && matchesStatus) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        }
+    }
+}
+
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('collegeFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+    filterTable();
+}
+
+function viewStudent(studentId) {
+    // Fetch student details via AJAX
+    fetch(`/admin/api/students/${studentId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const student = data.student;
+                const modalBody = document.getElementById('studentModalBody');
+                
+                modalBody.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            ${student.photo_path ? 
+                                `<img src="${student.photo_path.replace('static/', '/static/')}" class="img-fluid rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;">` :
+                                `<div class="bg-secondary rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 150px; height: 150px;"><i class="fas fa-user fa-3x text-white"></i></div>`
+                            }
+                            <h5>${student.first_name} ${student.middle_name} ${student.last_name}</h5>
+                            <p class="text-muted">${student.student_id}</p>
+                        </div>
+                        <div class="col-md-8">
+                            <h6>Personal Information</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>Index Number:</strong></td><td>${student.index_number}</td></tr>
+                                <tr><td><strong>Email:</strong></td><td>${student.email}</td></tr>
+                                <tr><td><strong>Phone:</strong></td><td>${student.phone || 'Not provided'}</td></tr>
+                                <tr><td><strong>Date of Birth:</strong></td><td>${student.date_of_birth || 'Not provided'}</td></tr>
+                                <tr><td><strong>Gender:</strong></td><td>${student.gender || 'Not provided'}</td></tr>
+                            </table>
+                            
+                            <h6>Academic Information</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>College:</strong></td><td>${student.college_name}</td></tr>
+                                <tr><td><strong>Department:</strong></td><td>${student.department_name}</td></tr>
+                                <tr><td><strong>Year of Study:</strong></td><td>${student.year_of_study}</td></tr>
+                                <tr><td><strong>Academic Year:</strong></td><td>${student.academic_year}</td></tr>
+                                <tr><td><strong>Program:</strong></td><td>${student.program || 'Not specified'}</td></tr>
+                            </table>
+                            
+                            <h6>Statistics</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="card bg-primary text-white">
+                                        <div class="card-body text-center">
+                                            <h4>${student.total_recognitions}</h4>
+                                            <small>Total Recognitions</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="card bg-success text-white">
+                                        <div class="card-body text-center">
+                                            <h4>${student.total_attendance}</h4>
+                                            <small>Exam Attendance</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${data.recent_logs.length > 0 ? `
+                        <h6 class="mt-4">Recent Recognition Logs</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Type</th>
+                                        <th>Success</th>
+                                        <th>Confidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.recent_logs.map(log => `
+                                        <tr>
+                                            <td>${new Date(log.created_at).toLocaleDateString()}</td>
+                                            <td>${log.recognition_type}</td>
+                                            <td>${log.success ? '<span class="badge bg-success">Success</span>' : '<span class="badge bg-danger">Failed</span>'}</td>
+                                            <td>${(log.confidence_score * 100).toFixed(1)}%</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
+                `;
+                
+                const modal = new bootstrap.Modal(document.getElementById('studentModal'));
+                modal.show();
+            } else {
+                alert('Error loading student details: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading student details');
+        });
+}
+
+function editStudent(studentId) {
+    // Fetch current student data first
+    fetch(`/admin/api/students/${studentId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const student = data.student;
+                const modalBody = document.getElementById('studentModalBody');
+                
+                modalBody.innerHTML = `
+                    <form id="editStudentForm">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">First Name</label>
+                                    <input type="text" class="form-control" name="first_name" value="${student.first_name}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Middle Name</label>
+                                    <input type="text" class="form-control" name="middle_name" value="${student.middle_name || ''}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Last Name</label>
+                                    <input type="text" class="form-control" name="last_name" value="${student.last_name}" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" class="form-control" name="email" value="${student.email}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Phone</label>
+                                    <input type="text" class="form-control" name="phone" value="${student.phone || ''}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Year of Study</label>
+                            <select class="form-select" name="year_of_study" required>
+                                <option value="1" ${student.year_of_study == 1 ? 'selected' : ''}>Year 1</option>
+                                <option value="2" ${student.year_of_study == 2 ? 'selected' : ''}>Year 2</option>
+                                <option value="3" ${student.year_of_study == 3 ? 'selected' : ''}>Year 3</option>
+                                <option value="4" ${student.year_of_study == 4 ? 'selected' : ''}>Year 4</option>
+                                <option value="5" ${student.year_of_study == 5 ? 'selected' : ''}>Year 5</option>
+                            </select>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" onclick="bootstrap.Modal.getInstance(document.getElementById('studentModal')).hide()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                `;
+                
+                // Add form submission handler
+                document.getElementById('editStudentForm').addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const formData = new FormData(this);
+                    const data = Object.fromEntries(formData);
+                    
+                    fetch(`/admin/api/students/${studentId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            alert('Student updated successfully!');
+                            bootstrap.Modal.getInstance(document.getElementById('studentModal')).hide();
+                            location.reload();
+                        } else {
+                            alert('Error updating student: ' + result.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error updating student');
+                    });
+                });
+                
+                const modal = new bootstrap.Modal(document.getElementById('studentModal'));
+                modal.show();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading student data');
+        });
+}
+
+function testRecognition(indexNumber) {
+    const modal = new bootstrap.Modal(document.getElementById('recognitionModal'));
+    document.getElementById('recognitionModalBody').innerHTML = `
+        <div class="text-center py-4">
+            <h5>Test Face Recognition</h5>
+            <p>Testing recognition for student with index: <strong>${indexNumber}</strong></p>
+            <p class="text-muted">This feature would open a camera interface to test the student's face recognition.</p>
+            <button class="btn btn-primary" onclick="alert('Recognition test would be implemented here')">
+                <i class="fas fa-camera me-2"></i>Start Camera Test
+            </button>
+        </div>
+    `;
+    modal.show();
+}
+
+function toggleStatus(studentId, newStatus) {
+    if (confirm(`Are you sure you want to ${newStatus === 'active' ? 'activate' : 'deactivate'} this student?`)) {
+        fetch(`/admin/api/students/${studentId}/toggle-status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status: newStatus })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert(result.message);
+                location.reload(); // Reload to show changes
+            } else {
+                alert('Error: ' + result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error updating student status');
+        });
+    }
+}
+
+function deleteStudent(studentId, studentName) {
+    if (confirm(`Are you sure you want to delete ${studentName}? This action cannot be undone.`)) {
+        fetch(`/admin/api/students/${studentId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert(result.message);
+                location.reload(); // Reload to show changes
+            } else {
+                alert('Error: ' + result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting student');
+        });
+    }
+}
+
+function exportData() {
+    // In a real implementation, this would generate and download a CSV/Excel file
+    alert('Export functionality would generate a downloadable file with all student data');
+}
+</script>
+{% endblock %}
