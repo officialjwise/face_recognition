@@ -304,6 +304,9 @@
                     </div>
                     <h5>Verifying Identity...</h5>
                     <p class="text-muted mb-0">Please wait while we process your face data</p>
+                    <button type="button" id="closeModalBtn" class="btn btn-sm btn-outline-secondary mt-3" onclick="forceCloseModal()">
+                        <i class="fas fa-times me-1"></i>Cancel
+                    </button>
                 </div>
             </div>
         </div>
@@ -311,17 +314,174 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Face API.js for dynamic face detection -->
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="/static/js/face-api/face-api.min.js"></script>
+    <!-- Include modal fix script -->
+    <script src="/static/js/modal-fix.js"></script>
     <script>
         let video;
         let faceDetectionInterval;
         let faceApiLoaded = false;
+        let loadingModalInstance = null;
+        let verificationInProgress = false;
+        let modalCloseTimer = null;
+        
+        // Function to completely force modal closure with enhanced fallbacks
+        function forceCloseModal() {
+            console.log("Force closing modal - enhanced method");
+            
+            // Use multiple approaches to ensure the modal is closed
+            try {
+                // 1. Try Bootstrap's API
+                if (loadingModalInstance) {
+                    loadingModalInstance.hide();
+                    loadingModalInstance = null;
+                }
+                
+                // 2. Try getting instance from DOM
+                const modalElement = document.getElementById('loadingModal');
+                const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+                
+                // 3. Brute force removal of modal and backdrop
+                document.querySelectorAll('.modal-backdrop').forEach(el => {
+                    try {
+                        el.remove();
+                    } catch (e) {
+                        // Alternative removal if remove() fails
+                        if (el.parentNode) el.parentNode.removeChild(el);
+                    }
+                });
+                
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                if (modalElement) {
+                    modalElement.style.display = 'none';
+                    modalElement.classList.remove('show');
+                    modalElement.setAttribute('aria-hidden', 'true');
+                    
+                    // Additional: reset all inline styles
+                    modalElement.style = '';
+                    modalElement.style.display = 'none';
+                }
+                
+                // 4. Fallback approach: use jQuery if available
+                if (typeof $ !== 'undefined') {
+                    try {
+                        $('#loadingModal').modal('hide');
+                        $('.modal-backdrop').remove();
+                    } catch (e) {
+                        console.warn("jQuery fallback failed:", e);
+                    }
+                }
+                
+                // 5. Ultra fallback - recreate the modal element
+                try {
+                    if (modalElement && modalElement.parentNode) {
+                        const modalParent = modalElement.parentNode;
+                        const modalHTML = modalElement.outerHTML;
+                        modalElement.remove();
+                        
+                        // Wait a bit before recreating to avoid any state conflicts
+                        setTimeout(() => {
+                            modalParent.insertAdjacentHTML('beforeend', modalHTML);
+                        }, 500);
+                    }
+                } catch (e) {
+                    console.warn("Modal recreation fallback failed:", e);
+                }
+                
+                // Reset verification flag
+                verificationInProgress = false;
+                
+                // Clear any pending timers
+                if (modalCloseTimer) {
+                    clearTimeout(modalCloseTimer);
+                    modalCloseTimer = null;
+                }
+                
+                console.log("Modal force-closed successfully");
+                
+                // Final verification: check if the modal is truly gone after a short delay
+                setTimeout(() => {
+                    if (document.body.classList.contains('modal-open') || 
+                        document.querySelectorAll('.modal-backdrop').length > 0 ||
+                        document.querySelectorAll('.modal.show').length > 0) {
+                        
+                        console.warn("Modal still detected after cleanup, applying emergency fixes");
+                        
+                        // Last resort cleanup
+                        document.body.className = document.body.className.replace(/\bmodal-open\b/, '');
+                        document.body.style.overflow = '';
+                        document.body.style.paddingRight = '';
+                        
+                        document.querySelectorAll('.modal-backdrop').forEach(el => {
+                            if (el.parentNode) el.parentNode.removeChild(el);
+                        });
+                        
+                        document.querySelectorAll('.modal.show').forEach(el => {
+                            el.className = el.className.replace(/\bshow\b/, '');
+                            el.style.display = 'none';
+                        });
+                    }
+                }, 300);
+                
+            } catch (err) {
+                console.error("Error during force close:", err);
+                
+                // Ultimate fallback - brute force DOM cleanup
+                try {
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                    
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    for (let i = 0; i < backdrops.length; i++) {
+                        if (backdrops[i].parentNode) {
+                            backdrops[i].parentNode.removeChild(backdrops[i]);
+                        }
+                    }
+                    
+                    const modals = document.querySelectorAll('.modal');
+                    for (let i = 0; i < modals.length; i++) {
+                        modals[i].classList.remove('show');
+                        modals[i].style.display = 'none';
+                    }
+                    
+                    // Reset verification status to prevent lockouts
+                    verificationInProgress = false;
+                } catch (finalErr) {
+                    console.error("Fatal error in modal cleanup:", finalErr);
+                    // Last ditch attempt - reload the page
+                    setTimeout(() => window.location.reload(), 5000);
+                }
+            }
+        }
         
         document.addEventListener('DOMContentLoaded', function() {
             video = document.getElementById('video');
             
             // Add debug logging
             console.log('Starting face detection system...');
+            
+            // Try advanced detection if available, but don't block on it
+            document.getElementById('closeModalBtn').addEventListener('click', forceCloseModal);
+            
+            // Add a DOM observer to detect and fix stuck modals
+            setupModalObserver();
+            
+            // Check if this is a test verification from admin panel
+            const urlParams = new URLSearchParams(window.location.search);
+            const testStudentIndex = urlParams.get('test');
+            if (testStudentIndex) {
+                document.querySelector('.verification-card h2').innerHTML = 
+                    `<i class="fas fa-camera me-2"></i>Test Verification for ${testStudentIndex}`;
+                document.querySelector('.text-muted').innerHTML = 
+                    `This is a test verification for student with index number <strong>${testStudentIndex}</strong>`;
+            }
             
             // Try to load face-api.js models first, but with aggressive timeout
             loadFaceApiModels().then((loaded) => {
@@ -336,7 +496,71 @@
             
             // Verify button handler
             document.getElementById('verifyBtn').addEventListener('click', verifyIdentity);
+            
+            // Add emergency modal close handler
+            document.getElementById('closeModalBtn').addEventListener('click', function() {
+                try {
+                    const modalElement = document.getElementById('loadingModal');
+                    const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                    if (modalInstance) {
+                        modalInstance.hide();
+                    } else {
+                        // Manual hide
+                        modalElement.classList.remove('show');
+                        document.body.classList.remove('modal-open');
+                        const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+                        while(modalBackdrops.length > 0) {
+                            modalBackdrops[0].parentNode.removeChild(modalBackdrops[0]);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error closing modal:', e);
+                }
+            });
         });
+        
+        // Setup modal observer to detect and fix stuck modals
+        function setupModalObserver() {
+            // Observer config to monitor for stuck modals
+            const config = { attributes: true, childList: true, subtree: true };
+            
+            // Create an observer instance to monitor the body
+            const observer = new MutationObserver((mutations) => {
+                for (const mutation of mutations) {
+                    // Check if modal-related classes are still present after verification
+                    if (!verificationInProgress && 
+                        (document.body.classList.contains('modal-open') || 
+                         document.querySelectorAll('.modal-backdrop').length > 0 ||
+                         document.querySelectorAll('.modal.show').length > 0)) {
+                        
+                        console.warn('Stuck modal detected by observer, attempting to fix');
+                        forceCloseModal();
+                        break;
+                    }
+                }
+            });
+            
+            // Start observing the body for changes
+            observer.observe(document.body, config);
+            
+            // Add double-check interval
+            setInterval(() => {
+                if (!verificationInProgress && 
+                    (document.body.classList.contains('modal-open') || 
+                     document.querySelectorAll('.modal-backdrop').length > 0)) {
+                    console.warn('Stuck modal detected by interval check, applying fix');
+                    forceCloseModal();
+                }
+            }, 2000);
+            
+            // Add click handler on backdrop as a last resort
+            document.addEventListener('click', (e) => {
+                if (e.target && e.target.classList.contains('modal-backdrop') && !verificationInProgress) {
+                    console.log('Backdrop clicked, forcing modal closure');
+                    forceCloseModal();
+                }
+            });
+        }
         
         async function loadFaceApiModels() {
             try {
@@ -348,7 +572,7 @@
                     return false;
                 }
                 
-                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+                const MODEL_URL = '/static/js/face-api/weights';
                 
                 // Try to load models with aggressive timeout (5 seconds)
                 const loadPromises = [
@@ -684,48 +908,140 @@
         }
         
         function verifyIdentity() {
-            // Show loading modal
-            new bootstrap.Modal(document.getElementById('loadingModal')).show();
+            // Prevent multiple verification attempts
+            if (verificationInProgress) {
+                console.log('Verification already in progress, ignoring request');
+                return;
+            }
             
-            // Capture current frame
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
+            verificationInProgress = true;
+            console.log('Starting verification process');
             
-            const imageData = canvas.toDataURL('image/jpeg', 0.8);
-            
-            // Submit for verification
-            fetch('/student/verify', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ face_image: imageData })
-            })
-            .then(response => response.json())
-            .then(result => {
-                // Hide loading modal
-                bootstrap.Modal.getInstance(document.getElementById('loadingModal')).hide();
+            // Show loading modal with safeguards
+            try {
+                // Get modal element
+                const modalElement = document.getElementById('loadingModal');
                 
-                if (result.success) {
-                    displayStudentProfile(result.student, result.attendance_marked);
+                // Close any existing modal first to prevent stacking
+                const existingModal = bootstrap.Modal.getInstance(modalElement);
+                if (existingModal) {
+                    existingModal.hide();
+                    // Short delay before showing the new modal
+                    setTimeout(() => showVerificationModal(), 300);
                 } else {
-                    alert('Verification failed: ' + result.message);
+                    showVerificationModal();
                 }
-            })
-            .catch(error => {
-                // Hide loading modal
-                bootstrap.Modal.getInstance(document.getElementById('loadingModal')).hide();
-                console.error('Error:', error);
-                alert('Verification failed. Please try again.');
-            });
+            } catch (e) {
+                console.error('Error showing modal:', e);
+                // Fallback - show modal directly
+                showVerificationModal();
+            }
+            
+            function showVerificationModal() {
+                try {
+                    // Create fresh modal instance
+                    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'), {
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+                    
+                    loadingModal.show();
+                    loadingModalInstance = loadingModal;
+                    
+                    // Always show cancel button immediately
+                    document.getElementById('closeModalBtn').style.display = 'inline-block';
+                    
+                    // Set a safety timeout to auto-close the modal after 20 seconds
+                    // This ensures the modal never gets permanently stuck
+                    if (modalCloseTimer) clearTimeout(modalCloseTimer);
+                    
+                    modalCloseTimer = setTimeout(() => {
+                        console.log("Safety timeout: auto-closing modal after 20 seconds");
+                        forceCloseModal();
+                        verificationInProgress = false;
+                        alert("Verification timed out. Please try again.");
+                    }, 20000);
+                    
+                    // Proceed with verification
+                    performVerification();
+                } catch (e) {
+                    console.error('Error in showVerificationModal:', e);
+                    verificationInProgress = false;
+                    alert("There was a problem starting verification. Please try again.");
+                }
+            }
+            
+            function performVerification() {
+                // Capture current frame
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0);
+                    
+                    const imageData = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    // Submit for verification
+                    fetch('/student/verify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ face_image: imageData })
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(result => {
+                        // Cancel safety timeout since we got a response
+                        if (modalCloseTimer) {
+                            clearTimeout(modalCloseTimer);
+                            modalCloseTimer = null;
+                        }
+                        
+                        // Hide loading modal with multiple fallbacks
+                        forceCloseModal();
+                        
+                        if (result.success) {
+                            displayStudentProfile(result.student, result.attendance_marked);
+                        } else {
+                            verificationInProgress = false;
+                            alert('Verification failed: ' + result.message);
+                        }
+                    })
+                    .catch(error => {
+                        // Cancel safety timeout
+                        if (modalCloseTimer) {
+                            clearTimeout(modalCloseTimer);
+                            modalCloseTimer = null;
+                        }
+                        
+                        // Hide loading modal with multiple fallbacks
+                        forceCloseModal();
+                        
+                        console.error('Error:', error);
+                        verificationInProgress = false;
+                        alert('Verification failed. Please try again.');
+                    });
+                } catch (e) {
+                    console.error('Error capturing/sending image:', e);
+                    forceCloseModal();
+                    verificationInProgress = false;
+                    alert('Failed to capture image. Please try again.');
+                }
+            }
         }
         
         function displayStudentProfile(student, attendanceMarked) {
             // Stop face detection
             clearInterval(faceDetectionInterval);
+            
+            // Reset verification flag
+            verificationInProgress = false;
             
             // Hide verification section
             document.getElementById('verificationSection').style.display = 'none';
@@ -774,6 +1090,9 @@
         }
         
         function resetVerification() {
+            // Reset verification flag
+            verificationInProgress = false;
+            
             // Show verification section
             document.getElementById('verificationSection').style.display = 'block';
             
@@ -783,6 +1102,14 @@
             // Restart face detection
             startFaceDetection();
         }
+        
+        // Add unload handler to clean up any modals when navigating away
+        window.addEventListener('beforeunload', function() {
+            // Clean up any open modals
+            console.log('Page unloading - cleaning up modals');
+            forceCloseModal();
+            verificationInProgress = false;
+        });
     </script>
 </body>
 </html>

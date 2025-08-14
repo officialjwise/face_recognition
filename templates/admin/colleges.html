@@ -22,7 +22,7 @@
     {% if colleges %}
         {% for college in colleges %}
         <div class="col-lg-4 col-md-6 mb-4">
-            <div class="card h-100">
+            <div class="card h-100" data-college-id="{{ college.id }}">
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0">
@@ -224,9 +224,32 @@ function editCollege(collegeId) {
 
 function deleteCollege(collegeId, collegeName) {
     if (confirm(`Are you sure you want to delete "${collegeName}"? This action cannot be undone and will affect all associated departments and students.`)) {
-        // In a real implementation, this would send a DELETE request
-        alert(`College "${collegeName}" would be deleted from the system`);
-        location.reload(); // Reload to show changes
+        // Send DELETE request to the server
+        fetch(`/admin/api/colleges/${collegeId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert(result.message);
+                // Remove the row from the DOM
+                const collegeRow = document.querySelector(`tr[data-college-id="${collegeId}"]`);
+                if (collegeRow) {
+                    collegeRow.remove();
+                } else {
+                    location.reload(); // Fallback
+                }
+            } else {
+                alert('Error: ' + result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting college. Please try again.');
+        });
     }
 }
 

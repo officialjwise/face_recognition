@@ -98,7 +98,7 @@
                         </thead>
                         <tbody>
                             {% for student in students %}
-                            <tr>
+                            <tr data-student-id="{{ student.id }}">
                                 <td>
                                     {% if student.photo_path %}
                                         <img src="{{ url_for('static', filename=student.photo_path.replace('static/', '')) }}" 
@@ -513,14 +513,17 @@ function editStudent(studentId) {
 
 function testRecognition(indexNumber) {
     const modal = new bootstrap.Modal(document.getElementById('recognitionModal'));
-    document.getElementById('recognitionModalBody').innerHTML = `
+    document.getElementById('recognitionModal').querySelector('.modal-body').innerHTML = `
         <div class="text-center py-4">
-            <h5>Test Face Recognition</h5>
-            <p>Testing recognition for student with index: <strong>${indexNumber}</strong></p>
-            <p class="text-muted">This feature would open a camera interface to test the student's face recognition.</p>
-            <button class="btn btn-primary" onclick="alert('Recognition test would be implemented here')">
-                <i class="fas fa-camera me-2"></i>Start Camera Test
-            </button>
+            <h5>Face Recognition Test</h5>
+            <p>Ready to test recognition for student with index: <strong>${indexNumber}</strong></p>
+            <p class="mb-3">Click the button below to open the verification page in a new tab:</p>
+            <a href="/student/verify?test=${indexNumber}" class="btn btn-primary" target="_blank">
+                <i class="fas fa-external-link-alt me-2"></i>Open Verification Page
+            </a>
+            <p class="text-muted mt-3">
+                <small>The verification page will open in a new tab. Use the camera there to verify the student's identity.</small>
+            </p>
         </div>
     `;
     modal.show();
@@ -563,7 +566,14 @@ function deleteStudent(studentId, studentName) {
         .then(result => {
             if (result.success) {
                 alert(result.message);
-                location.reload(); // Reload to show changes
+                // Get the row element and remove it from the DOM
+                const studentRow = document.querySelector(`tr[data-student-id="${studentId}"]`);
+                if (studentRow) {
+                    studentRow.remove();
+                } else {
+                    // Fallback to reloading the page
+                    location.reload();
+                }
             } else {
                 alert('Error: ' + result.message);
             }
@@ -576,8 +586,68 @@ function deleteStudent(studentId, studentName) {
 }
 
 function exportData() {
-    // In a real implementation, this would generate and download a CSV/Excel file
-    alert('Export functionality would generate a downloadable file with all student data');
+    // Get all visible students (respecting filters)
+    const table = document.getElementById('studentsTable');
+    const rows = Array.from(table.querySelectorAll('tbody tr')).filter(row => row.style.display !== 'none');
+    
+    if (rows.length === 0) {
+        alert('No students to export. Please clear filters if you want to export all students.');
+        return;
+    }
+    
+    // Create CSV content
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    
+    // Add headers
+    csvContent += 'Student ID,Name,Index Number,Email,College,Department,Year of Study,Academic Year,Status,Registration Date\n';
+    
+    // Add data rows
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        
+        // Skip if not enough cells
+        if (cells.length < 10) return;
+        
+        const studentId = cells[1].querySelector('small').textContent.replace('ID: ', '');
+        const name = cells[1].querySelector('strong').textContent;
+        const indexNumber = cells[2].textContent.trim();
+        const email = cells[3].textContent.trim();
+        const college = cells[4].textContent.trim();
+        const department = cells[5].textContent.trim();
+        const yearOfStudy = cells[6].textContent.trim().replace('Year ', '');
+        const academicYear = cells[7].textContent.trim();
+        const status = cells[8].textContent.trim();
+        const registrationDate = cells[9].textContent.trim();
+        
+        // Escape CSV values and join with commas
+        const rowData = [
+            `"${studentId}"`,
+            `"${name}"`,
+            `"${indexNumber}"`,
+            `"${email}"`,
+            `"${college}"`,
+            `"${department}"`,
+            `"${yearOfStudy}"`,
+            `"${academicYear}"`,
+            `"${status}"`,
+            `"${registrationDate}"`
+        ].join(',');
+        
+        csvContent += rowData + '\n';
+    });
+    
+    // Create download link
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `students_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    
+    // Trigger download
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
 }
 </script>
 {% endblock %}

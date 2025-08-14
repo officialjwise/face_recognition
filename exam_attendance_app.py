@@ -853,6 +853,49 @@ def admin_toggle_college_status(college_id):
     finally:
         conn.close()
 
+@app.route('/admin/api/colleges/<int:college_id>', methods=['DELETE'])
+@login_required
+def admin_delete_college(college_id):
+    """Delete college (soft delete)"""
+    conn = get_db_connection()
+    try:
+        # Check if college has students
+        student_count = conn.execute(
+            'SELECT COUNT(*) as count FROM students s JOIN departments d ON s.department_id = d.id WHERE d.college_id = ? AND s.status != "deleted"',
+            (college_id,)
+        ).fetchone()['count']
+        
+        if student_count > 0:
+            return jsonify({
+                'success': False, 
+                'message': f'Cannot delete college. It has {student_count} active students in its departments.'
+            })
+        
+        # Check if college has departments
+        dept_count = conn.execute(
+            'SELECT COUNT(*) as count FROM departments WHERE college_id = ? AND status != "inactive"',
+            (college_id,)
+        ).fetchone()['count']
+        
+        if dept_count > 0:
+            return jsonify({
+                'success': False, 
+                'message': f'Cannot delete college. It has {dept_count} active departments. Please delete departments first.'
+            })
+        
+        # Soft delete by setting status to 'inactive'
+        conn.execute(
+            'UPDATE colleges SET status = ? WHERE id = ?',
+            ('inactive', college_id)
+        )
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'College deleted successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error deleting college: {str(e)}'})
+    finally:
+        conn.close()
+
 @app.route('/admin/api/departments/<int:department_id>')
 @login_required
 def admin_department_details(department_id):
