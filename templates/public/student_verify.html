@@ -320,9 +320,17 @@
         document.addEventListener('DOMContentLoaded', function() {
             video = document.getElementById('video');
             
-            // Load face-api.js models first
-            loadFaceApiModels().then(() => {
-                faceApiLoaded = true;
+            // Add debug logging
+            console.log('Starting face detection system...');
+            
+            // Try to load face-api.js models first, but with aggressive timeout
+            loadFaceApiModels().then((loaded) => {
+                faceApiLoaded = loaded;
+                console.log('Face API loaded:', loaded);
+                initializeCamera();
+            }).catch(() => {
+                console.log('Face API loading failed, using basic detection');
+                faceApiLoaded = false;
                 initializeCamera();
             });
             
@@ -333,9 +341,16 @@
         async function loadFaceApiModels() {
             try {
                 console.log('Loading face-api.js models...');
+                
+                // Check if faceapi is available
+                if (typeof faceapi === 'undefined') {
+                    console.log('face-api.js not loaded, using basic detection');
+                    return false;
+                }
+                
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
                 
-                // Try to load models with timeout
+                // Try to load models with aggressive timeout (5 seconds)
                 const loadPromises = [
                     faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
                     faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -344,7 +359,7 @@
                 
                 await Promise.race([
                     Promise.all(loadPromises),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
                 ]);
                 
                 console.log('Face API models loaded successfully');
@@ -379,6 +394,7 @@
         
         function startFaceDetection() {
             clearInterval(faceDetectionInterval);
+            console.log('Starting face detection with faceApiLoaded:', faceApiLoaded);
             
             // Create overlay canvas for face detection visualization
             let overlay = document.getElementById('faceOverlay');
@@ -408,31 +424,77 @@
                     const status = document.getElementById('detectionStatus');
                     const verifyBtn = document.getElementById('verifyBtn');
                     
+                    // Always enable verify button and use basic detection
+                    // This ensures the system works even if face detection fails
+                    verifyBtn.disabled = false;
+                    status.innerHTML = '<i class="fas fa-check-circle me-1"></i>Camera ready - Click verify to proceed';
+                    status.style.background = 'rgba(40, 167, 69, 0.8)';
+                    
+                    // Try advanced detection if available, but don't block on it
                     if (faceApiLoaded && typeof faceapi !== 'undefined') {
                         try {
-                            // Use face-api.js for advanced detection
                             const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({
-                                inputSize: 416,
-                                scoreThreshold: 0.5
-                            })).withFaceLandmarks();
+                                inputSize: 320,
+                                scoreThreshold: 0.4
+                            }));
                             
                             if (detections.length > 0) {
                                 drawAdvancedFaceDetection(overlayCtx, detections, overlay, status, verifyBtn);
                             } else {
-                                drawGuidanceBox(overlayCtx, overlay, status, verifyBtn, false);
+                                // Show basic ready state
+                                drawBasicReadyState(overlayCtx, overlay, status, verifyBtn);
                             }
                             
                         } catch (error) {
-                            console.error('Face detection error:', error);
-                            // Fall back to basic detection
-                            basicFaceDetection(overlayCtx, overlay, status, verifyBtn);
+                            console.warn('Advanced face detection error (continuing with basic):', error);
+                            drawBasicReadyState(overlayCtx, overlay, status, verifyBtn);
                         }
                     } else {
-                        // Use basic detection as fallback
+                        // Use simple detection for better reliability
                         basicFaceDetection(overlayCtx, overlay, status, verifyBtn);
                     }
                 }
-            }, 150); // Update every 150ms for smooth detection
+            }, 200); // Slower update for better performance
+        }
+        
+        function drawBasicReadyState(overlayCtx, overlay, status, verifyBtn) {
+            // Always show ready state
+            status.innerHTML = '<i class="fas fa-camera me-1"></i>Camera ready - Position your face and click verify';
+            status.style.background = 'rgba(40, 167, 69, 0.8)';
+            verifyBtn.disabled = false;
+            
+            // Draw simple guide frame
+            const centerX = overlay.width / 2;
+            const centerY = overlay.height / 2;
+            const frameWidth = overlay.width * 0.6;
+            const frameHeight = overlay.height * 0.7;
+            
+            overlayCtx.strokeStyle = '#28a745';
+            overlayCtx.lineWidth = 2;
+            overlayCtx.setLineDash([10, 5]);
+            overlayCtx.strokeRect(
+                centerX - frameWidth / 2,
+                centerY - frameHeight / 2,
+                frameWidth,
+                frameHeight
+            );
+            overlayCtx.setLineDash([]);
+            
+            // Add instructions
+            overlayCtx.fillStyle = '#ffffff';
+            overlayCtx.font = 'bold 16px Arial';
+            overlayCtx.strokeStyle = '#000000';
+            overlayCtx.lineWidth = 3;
+            overlayCtx.textAlign = 'center';
+            
+            overlayCtx.strokeText('Position your face here', centerX, centerY - frameHeight / 2 - 20);
+            overlayCtx.fillText('Position your face here', centerX, centerY - frameHeight / 2 - 20);
+            
+            overlayCtx.font = 'bold 14px Arial';
+            overlayCtx.strokeText('Click Verify when ready', centerX, centerY + frameHeight / 2 + 30);
+            overlayCtx.fillText('Click Verify when ready', centerX, centerY + frameHeight / 2 + 30);
+            
+            overlayCtx.textAlign = 'left';
         }
         
         function drawAdvancedFaceDetection(overlayCtx, detections, overlay, status, verifyBtn) {

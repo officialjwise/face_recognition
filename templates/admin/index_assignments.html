@@ -73,7 +73,15 @@
                                 </td>
                                 <td>
                                     <small class="text-muted">
-                                        {{ assignment.created_at.strftime('%b %d, %Y') if assignment.created_at else 'N/A' }}
+                                        {% if assignment.created_at %}
+                                            {% if assignment.created_at is string %}
+                                                {{ assignment.created_at.split(' ')[0] if ' ' in assignment.created_at else assignment.created_at }}
+                                            {% else %}
+                                                {{ assignment.created_at.strftime('%b %d, %Y') }}
+                                            {% endif %}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
                                     </small>
                                 </td>
                                 <td>
