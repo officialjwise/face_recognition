@@ -660,23 +660,56 @@ def admin_index_assignments():
         SELECT es.*, er.room_number
         FROM exam_sessions es
         LEFT JOIN exam_rooms er ON es.room_id = er.id
-        WHERE es.status = "scheduled"
-        ORDER BY es.exam_date DESC
+        WHERE es.status IN ("scheduled", "active")
+        ORDER BY es.exam_date DESC, es.start_time DESC
     ''').fetchall()
     
     rooms = conn.execute('SELECT * FROM exam_rooms ORDER BY room_number').fetchall()
+    
+    # Get colleges and departments for dropdowns
+    colleges = conn.execute('SELECT * FROM colleges WHERE status = "active" ORDER BY name').fetchall()
+    departments = conn.execute('SELECT * FROM departments WHERE status = "active" ORDER BY name').fetchall()
+    
     conn.close()
     
     return render_template('admin/index_assignments.html', 
                          assignments=assignments, 
                          exam_sessions=exam_sessions, 
-                         rooms=rooms)
+                         rooms=rooms,
+                         colleges=colleges,
+                         departments=departments)
 
 @app.route('/admin/index-assignments', methods=['POST'])
 @login_required
 def admin_index_assignments_create():
     """Create new index number range assignment"""
     data = request.form
+    
+    # Validate required fields
+    required_fields = ['exam_session_id', 'room_id', 'start_index', 'end_index', 'college_id', 'department_id']
+    for field in required_fields:
+        if not data.get(field):
+            flash(f'Error: {field.replace("_", " ").title()} is required', 'error')
+            return redirect(url_for('admin_index_assignments'))
+    
+    # Validate index numbers
+    start_index = data['start_index'].strip()
+    end_index = data['end_index'].strip()
+    
+    # Check if index numbers are digits only
+    if not start_index.isdigit() or not end_index.isdigit():
+        flash('Error: Index numbers must contain only digits', 'error')
+        return redirect(url_for('admin_index_assignments'))
+    
+    # Check length constraint (max 7 characters)
+    if len(start_index) > 7 or len(end_index) > 7:
+        flash('Error: Index numbers must be maximum 7 characters', 'error')
+        return redirect(url_for('admin_index_assignments'))
+    
+    # Check if start index is less than end index
+    if int(start_index) >= int(end_index):
+        flash('Error: End index must be greater than start index', 'error')
+        return redirect(url_for('admin_index_assignments'))
     
     conn = get_db_connection()
     try:
@@ -686,9 +719,8 @@ def admin_index_assignments_create():
                 college_id, department_id, created_by
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (
-            data['exam_session_id'], data['room_id'], data['start_index'],
-            data['end_index'], data.get('college_id', None),
-            data.get('department_id', None), session['admin_id']
+            data['exam_session_id'], data['room_id'], start_index,
+            end_index, data['college_id'], data['department_id'], session['admin_id']
         ))
         conn.commit()
         flash('Index range assignment created successfully!', 'success')

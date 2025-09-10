@@ -198,16 +198,18 @@
                             <div class="mb-3">
                                 <label for="start_index" class="form-label">Start Index Number *</label>
                                 <input type="text" class="form-control" name="start_index" required 
-                                       placeholder="e.g., 8550000">
-                                <div class="form-text">Starting index number for this range</div>
+                                       placeholder="e.g., 8550000" maxlength="7" pattern="[0-9]{1,7}"
+                                       title="Must be digits only, maximum 7 characters">
+                                <div class="form-text">Starting index number for this range (digits only, max 7 chars)</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="end_index" class="form-label">End Index Number *</label>
                                 <input type="text" class="form-control" name="end_index" required 
-                                       placeholder="e.g., 8559999">
-                                <div class="form-text">Ending index number for this range</div>
+                                       placeholder="e.g., 8559999" maxlength="7" pattern="[0-9]{1,7}"
+                                       title="Must be digits only, maximum 7 characters">
+                                <div class="form-text">Ending index number for this range (digits only, max 7 chars)</div>
                             </div>
                         </div>
                     </div>
@@ -215,22 +217,26 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="college_id" class="form-label">College (Optional)</label>
-                                <select class="form-control" name="college_id">
-                                    <option value="">All Colleges</option>
-                                    <!-- College options would be populated here -->
+                                <label for="college_id" class="form-label">College *</label>
+                                <select class="form-control" name="college_id" required>
+                                    <option value="">Select College</option>
+                                    {% for college in colleges %}
+                                    <option value="{{ college.id }}">{{ college.name }}</option>
+                                    {% endfor %}
                                 </select>
-                                <div class="form-text">Leave empty to apply to all colleges</div>
+                                <div class="form-text">College for this assignment</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="department_id" class="form-label">Department (Optional)</label>
-                                <select class="form-control" name="department_id">
-                                    <option value="">All Departments</option>
-                                    <!-- Department options would be populated here -->
+                                <label for="department_id" class="form-label">Department *</label>
+                                <select class="form-control" name="department_id" required>
+                                    <option value="">Select Department</option>
+                                    {% for department in departments %}
+                                    <option value="{{ department.id }}">{{ department.name }}</option>
+                                    {% endfor %}
                                 </select>
-                                <div class="form-text">Leave empty to apply to all departments</div>
+                                <div class="form-text">Department for this assignment</div>
                             </div>
                         </div>
                     </div>
@@ -297,20 +303,83 @@ function deleteAssignment(assignmentId) {
 // Form validation
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('#addAssignmentModal form');
+    const startIndexInput = form.querySelector('input[name="start_index"]');
+    const endIndexInput = form.querySelector('input[name="end_index"]');
+    
+    // Add real-time validation for index number inputs
+    function validateIndexInput(input) {
+        // Remove any non-digit characters
+        input.value = input.value.replace(/[^0-9]/g, '');
+        
+        // Limit to 7 characters
+        if (input.value.length > 7) {
+            input.value = input.value.substring(0, 7);
+        }
+        
+        // Add visual feedback
+        if (input.value.length > 0 && input.value.match(/^[0-9]{1,7}$/)) {
+            input.classList.remove('is-invalid');
+            input.classList.add('is-valid');
+        } else if (input.value.length > 0) {
+            input.classList.remove('is-valid');
+            input.classList.add('is-invalid');
+        } else {
+            input.classList.remove('is-valid', 'is-invalid');
+        }
+    }
+    
+    startIndexInput.addEventListener('input', function() {
+        validateIndexInput(this);
+    });
+    
+    endIndexInput.addEventListener('input', function() {
+        validateIndexInput(this);
+    });
     
     form.addEventListener('submit', function(e) {
         const startIndex = form.querySelector('input[name="start_index"]').value;
         const endIndex = form.querySelector('input[name="end_index"]').value;
+        const collegeId = form.querySelector('select[name="college_id"]').value;
+        const departmentId = form.querySelector('select[name="department_id"]').value;
         
+        // Validate index numbers are digits only
+        if (!/^[0-9]+$/.test(startIndex) || !/^[0-9]+$/.test(endIndex)) {
+            e.preventDefault();
+            alert('Index numbers must contain only digits');
+            return;
+        }
+        
+        // Validate index numbers length
+        if (startIndex.length > 7 || endIndex.length > 7) {
+            e.preventDefault();
+            alert('Index numbers must be maximum 7 characters');
+            return;
+        }
+        
+        // Validate range
         if (parseInt(startIndex) >= parseInt(endIndex)) {
             e.preventDefault();
             alert('End index must be greater than start index');
             return;
         }
         
-        if (startIndex.length < 7 || endIndex.length < 7) {
+        // Validate minimum length
+        if (startIndex.length < 1 || endIndex.length < 1) {
             e.preventDefault();
-            alert('Index numbers should be at least 7 digits long');
+            alert('Index numbers cannot be empty');
+            return;
+        }
+        
+        // Validate college and department are selected
+        if (!collegeId) {
+            e.preventDefault();
+            alert('Please select a college');
+            return;
+        }
+        
+        if (!departmentId) {
+            e.preventDefault();
+            alert('Please select a department');
             return;
         }
     });
