@@ -390,6 +390,88 @@ def migrate_database():
         conn.commit()
         conn.close()
 
+def delete_all_students():
+    """Delete all students from the database"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get count of students before deletion
+        cursor.execute("SELECT COUNT(*) FROM students WHERE status != 'deleted'")
+        student_count = cursor.fetchone()[0]
+        
+        if student_count == 0:
+            print("No active students found to delete.")
+            return False
+        
+        # Delete related records first (to maintain referential integrity)
+        print("Deleting exam assignments...")
+        cursor.execute("""
+            DELETE FROM exam_assignments 
+            WHERE student_id IN (SELECT id FROM students WHERE status != 'deleted')
+        """)
+        
+        print("Deleting recognition logs...")
+        cursor.execute("""
+            DELETE FROM recognition_logs 
+            WHERE student_id IN (SELECT id FROM students WHERE status != 'deleted')
+        """)
+        
+        # Soft delete students (mark as deleted instead of hard delete)
+        print(f"Marking {student_count} students as deleted...")
+        cursor.execute("""
+            UPDATE students 
+            SET status = 'deleted', updated_at = CURRENT_TIMESTAMP 
+            WHERE status != 'deleted'
+        """)
+        
+        conn.commit()
+        print(f"Successfully deleted {student_count} students and their related records.")
+        return True
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting students: {e}")
+        return False
+    finally:
+        conn.close()
+
+def hard_delete_all_students():
+    """Permanently delete all student records from the database"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get count of students before deletion
+        cursor.execute("SELECT COUNT(*) FROM students")
+        student_count = cursor.fetchone()[0]
+        
+        if student_count == 0:
+            print("No students found to delete.")
+            return False
+        
+        # Delete related records first (to maintain referential integrity)
+        print("Deleting exam assignments...")
+        cursor.execute("DELETE FROM exam_assignments")
+        
+        print("Deleting recognition logs...")
+        cursor.execute("DELETE FROM recognition_logs")
+        
+        # Hard delete all students
+        print(f"Permanently deleting {student_count} students...")
+        cursor.execute("DELETE FROM students")
+        
+        conn.commit()
+        print(f"Successfully permanently deleted {student_count} students and all their related records.")
+        return True
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error permanently deleting students: {e}")
+        return False
+    finally:
+        conn.close()
+
 if __name__ == '__main__':
     init_enhanced_db()
     migrate_database()

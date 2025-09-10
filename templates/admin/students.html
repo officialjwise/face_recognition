@@ -555,7 +555,7 @@ function toggleStatus(studentId, newStatus) {
 }
 
 function deleteStudent(studentId, studentName) {
-    if (confirm(`Are you sure you want to delete ${studentName}? This action cannot be undone.`)) {
+    if (confirm(`Are you sure you want to PERMANENTLY delete ${studentName}?\n\nThis will:\n- Remove the student record from the database\n- Delete their photos and face encodings\n- Remove all related attendance records\n\nThis action CANNOT be undone!`)) {
         fetch(`/admin/api/students/${studentId}`, {
             method: 'DELETE',
             headers: {

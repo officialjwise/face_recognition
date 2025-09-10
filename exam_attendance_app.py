@@ -135,7 +135,7 @@ def find_exam_room_for_student(index_number, exam_session_id=None):
     
     query = f'''
         SELECT ira.*, er.room_number, er.building, es.title as exam_title, es.subject,
-               es.exam_date, es.start_time, es.end_time
+               es.exam_date, es.start_time, es.end_time, ira.start_index, ira.end_index
         FROM index_range_assignments ira
         JOIN exam_rooms er ON ira.room_id = er.id
         JOIN exam_sessions es ON ira.exam_session_id = es.id
@@ -309,8 +309,43 @@ def student_verify_submit():
                 continue
         
         if best_match:
-            # Get exam room assignment
+            # Get exam room assignment based on index number
             room_assignment = find_exam_room_for_student(best_match['index_number'])
+            
+            # Automatic attendance marking based on index number range
+            attendance_marked = False
+            if room_assignment:
+                try:
+                    # Check if attendance already exists to avoid duplicates
+                    existing_attendance = conn.execute('''
+                        SELECT id FROM exam_attendance 
+                        WHERE student_id = ? AND exam_session_id = ?
+                    ''', (best_match['id'], room_assignment['exam_session_id'])).fetchone()
+                    
+                    if not existing_attendance:
+                        # Auto-mark attendance for student in the correct room range
+                        conn.execute('''
+                            INSERT INTO exam_attendance (
+                                student_id, exam_session_id, verification_time, room_assignment,
+                                seat_assignment, verification_method, confidence_score, status
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            best_match['id'], room_assignment['exam_session_id'], datetime.now(),
+                            f"{room_assignment['room_number']} - {room_assignment['building']}",
+                            'Auto-assigned', 'face_recognition_auto', 1.0 - best_distance, 'present'
+                        ))
+                        attendance_marked = True
+                    else:
+                        # Update existing attendance record
+                        conn.execute('''
+                            UPDATE exam_attendance 
+                            SET verification_time = ?, confidence_score = ?, verification_method = ?
+                            WHERE student_id = ? AND exam_session_id = ?
+                        ''', (datetime.now(), 1.0 - best_distance, 'face_recognition_auto', 
+                              best_match['id'], room_assignment['exam_session_id']))
+                        attendance_marked = True
+                except Exception as attendance_error:
+                    print(f"Warning: Could not mark attendance for student {best_match['index_number']}: {attendance_error}")
             
             # Log the verification
             conn.execute('''
@@ -322,19 +357,6 @@ def student_verify_submit():
                 best_match['id'], 'exam_verification', True, 1.0 - best_distance,
                 'face_recognition', request.remote_addr, request.headers.get('User-Agent')
             ))
-            
-            # Record attendance if exam room found
-            if room_assignment:
-                conn.execute('''
-                    INSERT OR REPLACE INTO exam_attendance (
-                        student_id, exam_session_id, verification_time, room_assignment,
-                        verification_method, confidence_score, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    best_match['id'], room_assignment['exam_session_id'], datetime.now(),
-                    f"{room_assignment['room_number']} - {room_assignment['building']}",
-                    'face_recognition', 1.0 - best_distance, 'present'
-                ))
             
             conn.commit()
             conn.close()
@@ -358,9 +380,11 @@ def student_verify_submit():
             
             return jsonify({
                 'success': True,
-                'message': 'Student verified successfully!',
+                'message': 'Student verified and attendance marked successfully!' if attendance_marked else 'Student verified successfully!',
                 'student': student_info,
-                'attendance_marked': bool(room_assignment)
+                'attendance_marked': attendance_marked,
+                'auto_assigned_room': room_assignment['room_number'] if room_assignment else None,
+                'room_range': f"{room_assignment.get('start_index', '')} - {room_assignment.get('end_index', '')}" if room_assignment else None
             })
         else:
             # Log failed verification
@@ -557,6 +581,7 @@ def admin_students():
         JOIN colleges c ON s.college_id = c.id
         JOIN departments d ON s.department_id = d.id
         JOIN academic_years ay ON s.academic_year_id = ay.id
+        WHERE s.status != 'deleted'
         ORDER BY s.created_at DESC
     ''').fetchall()
     conn.close()
@@ -673,6 +698,44 @@ def admin_index_assignments_create():
         conn.close()
     
     return redirect(url_for('admin_index_assignments'))
+
+@app.route('/admin/api/index-assignments/<int:assignment_id>', methods=['DELETE'])
+@login_required
+def admin_delete_index_assignment(assignment_id):
+    """Delete index range assignment (hard delete)"""
+    conn = get_db_connection()
+    try:
+        # Get assignment details before deletion for logging
+        assignment = conn.execute('''
+            SELECT ira.*, er.room_number, er.building, es.title as exam_title
+            FROM index_range_assignments ira
+            JOIN exam_rooms er ON ira.room_id = er.id
+            JOIN exam_sessions es ON ira.exam_session_id = es.id
+            WHERE ira.id = ?
+        ''', (assignment_id,)).fetchone()
+        
+        if not assignment:
+            return jsonify({'success': False, 'message': 'Assignment not found'})
+        
+        # Delete related attendance records for this assignment range
+        conn.execute('''
+            DELETE FROM exam_attendance 
+            WHERE exam_session_id = ? AND room_assignment LIKE ?
+        ''', (assignment['exam_session_id'], f"%{assignment['room_number']}%"))
+        
+        # Hard delete the assignment record
+        conn.execute('DELETE FROM index_range_assignments WHERE id = ?', (assignment_id,))
+        conn.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Room assignment for {assignment["room_number"]} (Range: {assignment["start_index"]} - {assignment["end_index"]}) deleted successfully'
+        })
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': f'Error deleting assignment: {str(e)}'})
+    finally:
+        conn.close()
 
 @app.route('/admin/attendance-reports')
 @login_required
@@ -809,18 +872,47 @@ def admin_edit_student(student_id):
 @app.route('/admin/api/students/<int:student_id>', methods=['DELETE'])
 @login_required
 def admin_delete_student(student_id):
-    """Delete student (soft delete)"""
+    """Delete student (hard delete)"""
+    import os
     conn = get_db_connection()
     try:
-        # Soft delete by setting status to 'deleted'
-        conn.execute(
-            'UPDATE students SET status = ?, updated_at = ? WHERE id = ?',
-            ('deleted', datetime.now(), student_id)
-        )
+        # Get student details before deletion for file cleanup
+        student = conn.execute('SELECT student_id, photo_path FROM students WHERE id = ?', (student_id,)).fetchone()
+        
+        if not student:
+            return jsonify({'success': False, 'message': 'Student not found'})
+        
+        student_uid = student['student_id']
+        
+        # Delete related records first (to maintain referential integrity)
+        conn.execute('DELETE FROM exam_assignments WHERE student_id = ?', (student_id,))
+        conn.execute('DELETE FROM recognition_logs WHERE student_id = ?', (student_id,))
+        
+        # Hard delete the student record
+        conn.execute('DELETE FROM students WHERE id = ?', (student_id,))
         conn.commit()
         
-        return jsonify({'success': True, 'message': 'Student deleted successfully'})
+        # Clean up associated files
+        try:
+            # Delete face encoding file
+            encoding_file = f"face_encodings/{student_uid}.npy"
+            if os.path.exists(encoding_file):
+                os.remove(encoding_file)
+            
+            # Delete student photos
+            photos_dir = "static/student_photos"
+            if os.path.exists(photos_dir):
+                for filename in os.listdir(photos_dir):
+                    if filename.startswith(student_uid):
+                        file_path = os.path.join(photos_dir, filename)
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+        except Exception as file_error:
+            print(f"Warning: Could not delete some files for student {student_uid}: {file_error}")
+        
+        return jsonify({'success': True, 'message': 'Student permanently deleted successfully'})
     except Exception as e:
+        conn.rollback()
         return jsonify({'success': False, 'message': f'Error deleting student: {str(e)}'})
     finally:
         conn.close()
